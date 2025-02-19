@@ -1,0 +1,10 @@
+**/__pycache__/
+datasets/
+models/
+data/
+fastText/
+temp/
+poetry.lock
+.env
+.idea
+.vscode
