@@ -1,1 +1,1 @@
-{"mteb_dataset_name": "WebFAQ", "test": {"ndcg_at_10": 0.3331536075895174}}
+{"mteb_dataset_name": "WebFAQ", "test": {"ndcg_at_10": 0.3339437442455764}}
