@@ -47,10 +47,14 @@ def parse_output(output: str) -> int:
         elif (match := re.match(".* ([0-9]{1,3}) out of 100", line)) is not None:
             score = int(match.group(1))
             break
-        elif (match := re.match(".* \*\*([0-9]{1,3})\*\* out of 100", line)) is not None:
+        elif (
+            match := re.match(".* \*\*([0-9]{1,3})\*\* out of 100", line)
+        ) is not None:
             score = int(match.group(1))
             break
-        elif (match := re.match(".* \*\*([0-9]{1,3}) out of 100\*\*", line)) is not None:
+        elif (
+            match := re.match(".* \*\*([0-9]{1,3}) out of 100\*\*", line)
+        ) is not None:
             score = int(match.group(1))
             break
         elif (match := re.match(".* ([0-9]{1,3})/100", line)) is not None:
@@ -80,16 +84,15 @@ def parse_output(output: str) -> int:
 
     if score == -1:
         click.echo(f"Invalid text:\n{output.strip()}", err=True)
-    
+
     return score
 
 
-
 def get_score(
-        client,
-        languages: Tuple[str, str],
-        questions: Tuple[str, str],
-        answers: Tuple[str, str]
+    client,
+    languages: Tuple[str, str],
+    questions: Tuple[str, str],
+    answers: Tuple[str, str],
 ) -> int:
     # Validity checks
     assert len(languages) == 2
@@ -103,12 +106,17 @@ def get_score(
     # Get score from GPT-4o-mini
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages = [
+        messages=[
             {
                 "role": "system",
-                "content": PROMPT.format(source_lang=languages[0], target_lang=languages[1], source_seg=seg_0, target_seg=seg_1)
+                "content": PROMPT.format(
+                    source_lang=languages[0],
+                    target_lang=languages[1],
+                    source_seg=seg_0,
+                    target_seg=seg_1,
+                ),
             }
-        ]
+        ],
     )
     output = response.choices[0].message.content.strip()
 
@@ -117,11 +125,9 @@ def get_score(
 
 
 def process_line(
-        line: str,
-        client: openai.OpenAI,
-        pbar: tqdm
+    line: str, client: openai.OpenAI, pbar: tqdm
 ) -> Optional[Dict[str, Union[int, str]]]:
-    
+
     # Update progress bar
     pbar.update(1)
 
@@ -167,12 +173,12 @@ def pc_score(dataset_name: str, filename_pattern: str):
     dotenv.load_dotenv()
 
     # Initialize OpenAI client
-    client = openai.OpenAI(
-        api_key=os.environ["OPENAI_API_KEY"]
-    )
+    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     # Load the JSONL files
-    paths = glob(os.path.join(DATASETS_FOLDER, dataset_name, "results", filename_pattern))
+    paths = glob(
+        os.path.join(DATASETS_FOLDER, dataset_name, "results", filename_pattern)
+    )
     click.echo(f"Found {len(paths)} candidates files")
 
     for path in sorted(paths):
@@ -190,7 +196,9 @@ def pc_score(dataset_name: str, filename_pattern: str):
 
                     futures = []
                     for line in file:
-                        futures.append(executor.submit(process_line, line, client, pbar))
+                        futures.append(
+                            executor.submit(process_line, line, client, pbar)
+                        )
 
                     for future in as_completed(futures):
                         scored_document = future.result()

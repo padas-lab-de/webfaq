@@ -52,7 +52,9 @@ def _get_retrieval_scores(hits_bm25: list, roberta_scores: dict, rel_docs: pd.Se
             if doc_id not in seen_docs:
                 seen_docs.append(doc_id)
                 if doc_id in rel_docs["corpus-id"].values:
-                    score = rel_docs.loc[rel_docs['corpus-id'] == doc_id]['score'].item()
+                    score = rel_docs.loc[rel_docs["corpus-id"] == doc_id][
+                        "score"
+                    ].item()
                     scores[str(doc_id)] = score
                 else:
                     scores[str(doc_id)] = 0
@@ -62,7 +64,12 @@ def _get_retrieval_scores(hits_bm25: list, roberta_scores: dict, rel_docs: pd.Se
     return scores
 
 
-def _get_ndcgs(queries: pd.DataFrame, qrels: pd.DataFrame, roberta_scores: dict, searcher: LuceneSearcher):
+def _get_ndcgs(
+    queries: pd.DataFrame,
+    qrels: pd.DataFrame,
+    roberta_scores: dict,
+    searcher: LuceneSearcher,
+):
     """
     Calculates the nDCG per query of a hybrid method combining retrieval results of dense and sparse models.
 
@@ -89,8 +96,12 @@ def _get_ndcgs(queries: pd.DataFrame, qrels: pd.DataFrame, roberta_scores: dict,
 @click.argument("index_path", type=str)
 @click.argument("data_path", type=str)
 @click.argument("save_path", type=str)
-@click.argument("task-name", type=click.Choice(["webfaq", "miracl", "tydi", "miraclhn"]))
-def bm25_evaluate_hybrid(index_path: str, data_path: str, save_path: str, task_name: str):
+@click.argument(
+    "task-name", type=click.Choice(["webfaq", "miracl", "tydi", "miraclhn"])
+)
+def bm25_evaluate_hybrid(
+    index_path: str, data_path: str, save_path: str, task_name: str
+):
     """
     Evaluates retrieval performance of a hybrid setting combining retrieval results of BM25 and XLM-RoBERTa.
 
@@ -103,7 +114,9 @@ def bm25_evaluate_hybrid(index_path: str, data_path: str, save_path: str, task_n
     eval_split = "dev" if "miracl" in task_name else "test"
     task_name_mteb = get_task_name(task_name)
     eval_langs = task.metadata.eval_langs
-    model = SentenceTransformer("anonymous202501/xlm-roberta-base-msmarco-webfaq", trust_remote_code=True)
+    model = SentenceTransformer(
+        "anonymous202501/xlm-roberta-base-msmarco-webfaq", trust_remote_code=True
+    )
 
     for lang in eval_langs:
         click.echo(f"Evaluating on language {lang}")
@@ -112,7 +125,12 @@ def bm25_evaluate_hybrid(index_path: str, data_path: str, save_path: str, task_n
         language = eval_lang.split("-")[0]
         task.metadata.eval_langs = [lang]
         os.makedirs(f"{save_path}{language}", exist_ok=True)
-        queries = pd.read_csv(f"{data_path}{language}/queries.tsv", sep="\t", header=None, names=["id", "text"])
+        queries = pd.read_csv(
+            f"{data_path}{language}/queries.tsv",
+            sep="\t",
+            header=None,
+            names=["id", "text"],
+        )
         qrels = pd.read_csv(f"{data_path}{language}/qrels.tsv", sep="\t")
         task.load_data()
         searcher = LuceneSearcher(f"{index_path}{language}")
@@ -121,5 +139,11 @@ def bm25_evaluate_hybrid(index_path: str, data_path: str, save_path: str, task_n
         ndcgs = _get_ndcgs(queries, qrels, roberta_scores, searcher)
 
         with open(f"{save_path}{language}/{task_name_mteb}_hybrid.json", "w") as file:
-            json.dump({"mteb_dataset_name": task_name_mteb, "test": {"ndcg_at_10": np.mean(ndcgs)}}, file)
-            click.echo(f'NDCG@10 : {np.mean(ndcgs)}')
+            json.dump(
+                {
+                    "mteb_dataset_name": task_name_mteb,
+                    "test": {"ndcg_at_10": np.mean(ndcgs)},
+                },
+                file,
+            )
+            click.echo(f"NDCG@10 : {np.mean(ndcgs)}")

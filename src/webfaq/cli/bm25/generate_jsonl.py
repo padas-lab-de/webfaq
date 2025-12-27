@@ -2,7 +2,12 @@ import click
 import os
 import pandas as pd
 
-from webfaq.mteb.tasks import WebFAQ, MrTydiRetrieval, MIRACLRetrieval, MIRACLRetrievalHardNegatives
+from mteb.tasks.retrieval.multilingual import (
+    WebFAQRetrieval,
+    MIRACLRetrieval,
+    MIRACLRetrievalHardNegatives,
+    MrTidyRetrieval,
+)
 
 
 def _get_eval_task(task_name: str):
@@ -19,7 +24,7 @@ def _get_eval_task(task_name: str):
     elif task_name == "miraclhn":
         return MIRACLRetrievalHardNegatives()
     elif task_name == "tydi":
-        return MrTydiRetrieval()
+        return MrTidyRetrieval()
     else:
         raise NotImplementedError(f"Task {task_name} is not supported!")
 
@@ -27,7 +32,9 @@ def _get_eval_task(task_name: str):
 @click.command()
 @click.argument("eval-lang", type=str)
 @click.argument("save-path", type=str)
-@click.argument("task-name", type=click.Choice(["webfaq", "miracl", "tydi", "miraclhn"]))
+@click.argument(
+    "task-name", type=click.Choice(["webfaq", "miracl", "tydi", "miraclhn"])
+)
 def bm25_generate_jsonl(eval_lang: str, save_path: str, task_name: str):
     """
     Transforms the HuggingFace dataset into a JSONL file for BM25 index creation.
@@ -59,7 +66,9 @@ def bm25_generate_jsonl(eval_lang: str, save_path: str, task_name: str):
 
     for query_id in task.relevant_docs[eval_split]:
         for doc_id in task.relevant_docs[eval_split][query_id]:
-            qrels.append([query_id, doc_id, task.relevant_docs[eval_split][query_id][doc_id]])
+            qrels.append(
+                [query_id, doc_id, task.relevant_docs[eval_split][query_id][doc_id]]
+            )
 
     df = pd.DataFrame(qrels, columns=["query-id", "corpus-id", "score"])
     df.to_csv(f"{save_path}qrels.tsv", sep="\t", index=False)

@@ -46,12 +46,7 @@ Label: """
 def get_label(client, question):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages = [
-            {
-                "role": "system",
-                "content": PROMPT.format(question=question)
-            }
-        ]
+        messages=[{"role": "system", "content": PROMPT.format(question=question)}],
     )
 
     return response.choices[0].message.content
@@ -66,9 +61,7 @@ def qtc_annotate(dataset_name: str):
     dotenv.load_dotenv()
 
     # Initialize OpenAI client
-    client = openai.OpenAI(
-        api_key=os.environ["OPENAI_API_KEY"]
-    )
+    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     # Initialize results path
     results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
@@ -113,10 +106,12 @@ def qtc_annotate(dataset_name: str):
         if len(questions) < THRESHOLD and len(questions) < LIMIT:
             click.echo("Skipping language due to insufficient Q&A pairs")
             continue
-        
+
         # Annotate Q&A pairs
         annotated_questions_language = []
-        with tqdm(total=min(len(questions), LIMIT), desc=f"Annotate Q&A pairs for {language}") as pbar:
+        with tqdm(
+            total=min(len(questions), LIMIT), desc=f"Annotate Q&A pairs for {language}"
+        ) as pbar:
 
             for question in questions:
                 # Annotate using an LLM
@@ -139,11 +134,9 @@ def qtc_annotate(dataset_name: str):
                     continue
 
                 # Append annotated Q&A pair
-                annotated_questions_language.append({
-                    "language": language,
-                    "label": label,
-                    "question": question
-                })
+                annotated_questions_language.append(
+                    {"language": language, "label": label, "question": question}
+                )
 
                 # Update progress bar
                 pbar.update(1)
@@ -156,7 +149,9 @@ def qtc_annotate(dataset_name: str):
         annotated_questions.extend(annotated_questions_language)
 
         # Save annotated Q&A pairs (after each language)
-        annotations_path = os.path.join(RESOURCES_FOLDER, dataset_name, "qtc_annotations.jsonl")
+        annotations_path = os.path.join(
+            RESOURCES_FOLDER, dataset_name, "qtc_annotations.jsonl"
+        )
         os.makedirs(os.path.dirname(annotations_path), exist_ok=True)
         with open(annotations_path, "w") as file:
             for qa_pair in annotated_questions:

@@ -1,5 +1,6 @@
 import click
 from webfaq.cli.extract import extract
+from webfaq.cli.sort import sort
 from webfaq.cli.merge import merge
 from webfaq.cli.evaluate import evaluate
 from webfaq.cli.embed_labse import embed_labse
@@ -17,8 +18,9 @@ from webfaq.cli.fine_tune.ft_sample import ft_sample
 from webfaq.cli.fine_tune.ft_run import ft_run
 from webfaq.cli.fine_tune.ft_mteb import ft_mteb
 from webfaq.cli.bm25.generate_jsonl import bm25_generate_jsonl
-from webfaq.cli.bm25.bm25_evaluate import bm25_evaluate
-from webfaq.cli.bm25.bm25_evaluate_hybrid import bm25_evaluate_hybrid
+
+# from webfaq.cli.bm25.bm25_evaluate import bm25_evaluate
+# from webfaq.cli.bm25.bm25_evaluate_hybrid import bm25_evaluate_hybrid
 
 
 @click.group()
@@ -72,6 +74,7 @@ def bm25():
 
 
 main.add_command(extract)
+main.add_command(sort)
 main.add_command(merge)
 main.add_command(evaluate)
 main.add_command(embed_labse)
@@ -99,8 +102,8 @@ fine_tune.add_command(ft_run, "run")
 fine_tune.add_command(ft_mteb, "mteb")
 
 bm25.add_command(bm25_generate_jsonl, "generate-jsonl")
-bm25.add_command(bm25_evaluate, "evaluate")
-bm25.add_command(bm25_evaluate_hybrid, "evaluate-hybrid")
+# bm25.add_command(bm25_evaluate, "evaluate")
+# bm25.add_command(bm25_evaluate_hybrid, "evaluate-hybrid")
 
 
 if __name__ == "__main__":

@@ -3,33 +3,8 @@ import os
 import json
 from sentence_transformers import SentenceTransformer
 from mteb import MTEB
-from mteb.tasks.Retrieval.eng.ArguAnaRetrieval import ArguAna
-from mteb.tasks.Retrieval.eng.ClimateFEVERRetrieval import ClimateFEVER
-from mteb.tasks.Retrieval.eng.CQADupstackAndroidRetrieval import CQADupstackAndroidRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackEnglishRetrieval import CQADupstackEnglishRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackGamingRetrieval import CQADupstackGamingRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackGisRetrieval import CQADupstackGisRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackMathematicaRetrieval import CQADupstackMathematicaRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackPhysicsRetrieval import CQADupstackPhysicsRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackProgrammersRetrieval import CQADupstackProgrammersRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackStatsRetrieval import CQADupstackStatsRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackTexRetrieval import CQADupstackTexRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackUnixRetrieval import CQADupstackUnixRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackWebmastersRetrieval import CQADupstackWebmastersRetrieval
-from mteb.tasks.Retrieval.eng.CQADupstackWordpressRetrieval import CQADupstackWordpressRetrieval
-from mteb.tasks.Retrieval.eng.DBPediaRetrieval import DBPedia
-from mteb.tasks.Retrieval.eng.FEVERRetrieval import FEVER
-from mteb.tasks.Retrieval.eng.FiQA2018Retrieval import FiQA2018
-from mteb.tasks.Retrieval.eng.HotpotQARetrieval import HotpotQA
-from mteb.tasks.Retrieval.eng.MSMARCORetrieval import MSMARCO
-from mteb.tasks.Retrieval.eng.NFCorpusRetrieval import NFCorpus
-from mteb.tasks.Retrieval.eng.NQRetrieval import NQ
-from mteb.tasks.Retrieval.eng.QuoraRetrieval import QuoraRetrieval
-from mteb.tasks.Retrieval.eng.SCIDOCSRetrieval import SCIDOCS
-from mteb.tasks.Retrieval.eng.SciFactRetrieval import SciFact
-from mteb.tasks.Retrieval.eng.Touche2020Retrieval import Touche2020
-from mteb.tasks.Retrieval.eng.TRECCOVIDRetrieval import TRECCOVID
-# from webfaq.mteb.tasks.WebFAQ import WebFAQ
+from mteb.tasks.retrieval.eng import *
+
 from webfaq.config import *
 
 
@@ -52,7 +27,7 @@ def ft_mteb(pretrained_model_name: str):
     model_output_folder = os.path.join(TEMP_FOLDER, "evaluation", name)
     results_path = os.path.join(model_output_folder, "results.json")
     if os.path.exists(results_path):
-        with open(results_path, 'r') as file:
+        with open(results_path, "r") as file:
             results = json.load(file)
 
     # Initialize tasks
@@ -82,7 +57,7 @@ def ft_mteb(pretrained_model_name: str):
         SCIDOCS(),
         SciFact(),
         Touche2020(),
-        TRECCOVID()
+        TRECCOVID(),
     ]
 
     for task in tasks:
@@ -102,23 +77,23 @@ def ft_mteb(pretrained_model_name: str):
             eval_splits=[eval_split],
             output_folder=task_output_folder,
             overwrite_results=True,
-            encode_kwargs={"batch_size": 4}
+            encode_kwargs={"batch_size": 4},
         )
 
         # Read JSON file
         language_results_path = os.path.join(task_output_folder, f"{task_name}.json")
-        with open(language_results_path, 'r') as file:
+        with open(language_results_path, "r") as file:
             data = json.load(file)
-            ndcg_at_10 = data[eval_split]['ndcg_at_10']
-            click.echo(f'NDCG@10 for task {task_name}: {ndcg_at_10}')
-            mrr_at_100 = data[eval_split]['mrr_at_100']
-            click.echo(f'MRR@100 for task {task_name}: {mrr_at_100}')
-            recall_at_100 = data[eval_split]['recall_at_100']
-            click.echo(f'Recall@100 for task {task_name}: {recall_at_100}')
+            ndcg_at_10 = data[eval_split]["ndcg_at_10"]
+            click.echo(f"NDCG@10 for task {task_name}: {ndcg_at_10}")
+            mrr_at_100 = data[eval_split]["mrr_at_100"]
+            click.echo(f"MRR@100 for task {task_name}: {mrr_at_100}")
+            recall_at_100 = data[eval_split]["recall_at_100"]
+            click.echo(f"Recall@100 for task {task_name}: {recall_at_100}")
             results[task_name] = data[eval_split]
 
         # Save results to file
-        with open(results_path, 'w') as file:
+        with open(results_path, "w") as file:
             json.dump(results, file, indent=4)
 
     click.echo("Done")

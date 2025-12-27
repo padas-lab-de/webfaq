@@ -1,12 +1,17 @@
-import iso639
 import pandas as pd
+import iso639
 from iso639 import LanguageNotFoundError
 from pytrec_eval import RelevanceEvaluator
-from webfaq.mteb.tasks import MIRACLRetrieval, MIRACLRetrievalHardNegatives, MrTydiRetrieval, WebFAQ
+from mteb.tasks.retrieval.multilingual import (
+    WebFAQRetrieval,
+    MIRACLRetrieval,
+    MIRACLRetrievalHardNegatives,
+    MrTidyRetrieval,
+)
 
 
 def count_lines(filepath):
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         return sum(1 for _ in f)
 
 
@@ -72,7 +77,7 @@ def get_retrieval_scores(rel_docs: pd.Series, hits: list):
         if len(scores) < 10 and hit.docid not in seen_docs:
             seen_docs.append(hit.docid)
             if hit.docid in rel_docs["corpus-id"].values:
-                score = rel_docs.loc[rel_docs['corpus-id'] == hit.docid]['score'].item()
+                score = rel_docs.loc[rel_docs["corpus-id"] == hit.docid]["score"].item()
                 scores[str(hit.docid)] = score
             else:
                 scores[str(hit.docid)] = 0

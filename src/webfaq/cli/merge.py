@@ -19,7 +19,7 @@ def merge(dataset_name: str, extend: bool):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
         raise NotADirectoryError(f"Path is not a directory: {results_path}")
-    
+
     for language in sorted(os.listdir(results_path)):
         language_path = os.path.join(results_path, language)
         if not os.path.isdir(language_path):
@@ -41,7 +41,9 @@ def merge(dataset_name: str, extend: bool):
             if not os.path.isdir(input_path):
                 continue
 
-            part_files.append(open(os.path.join(input_path, "faq.jsonl"), "r", encoding="utf-8"))
+            part_files.append(
+                open(os.path.join(input_path, "faq.jsonl"), "r", encoding="utf-8")
+            )
             line = part_files[-1].readline()
             lines.append(line)
             document = json.loads(line)
@@ -108,5 +110,5 @@ def merge(dataset_name: str, extend: bool):
         # Remove the backup file
         if extend and os.path.exists(copy_faq_path):
             os.remove(copy_faq_path)
-    
+
     click.echo("Done")

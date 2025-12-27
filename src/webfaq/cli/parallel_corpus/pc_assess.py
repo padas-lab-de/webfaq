@@ -26,7 +26,9 @@ def pc_assess(dataset_name: str, filename_pattern: str):
     hist_scores = {}
 
     # Load the JSONL files
-    scores_paths = glob(os.path.join(DATASETS_FOLDER, dataset_name, "results", filename_pattern))
+    scores_paths = glob(
+        os.path.join(DATASETS_FOLDER, dataset_name, "results", filename_pattern)
+    )
     click.echo(f"Found {len(scores_paths)} scores files")
 
     for scores_path in scores_paths:
@@ -44,7 +46,9 @@ def pc_assess(dataset_name: str, filename_pattern: str):
                     answers = document["answers"]
 
                 except json.JSONDecodeError as e:
-                    click.echo(f"Skipping invalid JSON line in {scores_path}: {line.strip()} ({e})")
+                    click.echo(
+                        f"Skipping invalid JSON line in {scores_path}: {line.strip()} ({e})"
+                    )
                     continue
 
                 # Validity checks
@@ -54,7 +58,9 @@ def pc_assess(dataset_name: str, filename_pattern: str):
 
                 # Count the combinations
                 combination = tuple(sorted(languages))
-                count_combinations[combination] = count_combinations.get(combination, 0) + 1
+                count_combinations[combination] = (
+                    count_combinations.get(combination, 0) + 1
+                )
 
                 # Check if the questions are identical
                 if questions[0] == questions[1]:
@@ -78,16 +84,22 @@ def pc_assess(dataset_name: str, filename_pattern: str):
                 hist_scores[score] = hist_scores.get(score, 0) + 1
 
     # Sort combinations by count and scores by key
-    count_combinations = dict(sorted(count_combinations.items(), key=lambda item: item[1], reverse=True))
-    hist_similarities = dict(sorted(hist_similarities.items(), key=lambda item: item[0]))
+    count_combinations = dict(
+        sorted(count_combinations.items(), key=lambda item: item[1], reverse=True)
+    )
+    hist_similarities = dict(
+        sorted(hist_similarities.items(), key=lambda item: item[0])
+    )
     hist_scores = dict(sorted(hist_scores.items(), key=lambda item: item[0]))
-                
+
     # Print the results
     click.echo("")
     click.echo(f"Count all: {sum(count_combinations.values())}")
     click.echo(f"Count questions identical: {count_questions_identical}")
     click.echo(f"Count answers identical: {count_answer_identical}")
-    click.echo(f"Count questions and answers identical: {count_questions_answer_identical}")
+    click.echo(
+        f"Count questions and answers identical: {count_questions_answer_identical}"
+    )
     click.echo(f"")
     click.echo(f"Count combinations:")
     for combination, count in count_combinations.items():
@@ -109,9 +121,13 @@ def pc_assess(dataset_name: str, filename_pattern: str):
         num_total_parallel = 0
         num_total = 0
         for similarity, list_scores in hist_similarities.items():
-            num_total_parallel += len([score for score in list_scores if score >= threshold_score])
+            num_total_parallel += len(
+                [score for score in list_scores if score >= threshold_score]
+            )
             num_total += len(list_scores)
-        click.echo(f"Number of scores above {threshold_score}: {num_total_parallel} / {num_total} ({num_total_parallel / num_total:.3f}%)")
+        click.echo(
+            f"Number of scores above {threshold_score}: {num_total_parallel} / {num_total} ({num_total_parallel / num_total:.3f}%)"
+        )
 
         n_extract = 0
         n_correct = 0
@@ -126,6 +142,8 @@ def pc_assess(dataset_name: str, filename_pattern: str):
             precision = n_correct / n_extract
             recall = n_correct / num_total_parallel
             f1_score = 2 * precision * recall / (precision + recall)
-            click.echo(f"S: {threshold_similarity:3.2f}  P: {precision:.3f}  R: {recall:.3f}  F1: {f1_score:.3f}")
-                
+            click.echo(
+                f"S: {threshold_similarity:3.2f}  P: {precision:.3f}  R: {recall:.3f}  F1: {f1_score:.3f}"
+            )
+
     click.echo("Done")

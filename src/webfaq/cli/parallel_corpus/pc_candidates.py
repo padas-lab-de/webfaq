@@ -13,7 +13,12 @@ THRESHOLD_LABSE_SIMILARITY = 0.8
 LIMIT_QUESTIONS_SIMILARITY = 0.7
 
 
-def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offsets: List[List[Dict[str, int]]], dataset_name: str):
+def generate_candidates(
+    scheme_host: str,
+    languages: List[str],
+    scheme_host_offsets: List[List[Dict[str, int]]],
+    dataset_name: str,
+):
     """
     Given a 'scheme_host' string, a set of languages, and a threshold,
     returns candidate documents (plus scores) that match cross-lingually.
@@ -37,16 +42,19 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
 
         # Initialize set of questions
         set_questions = set()
-        
-        with open(os.path.join(language_path, "faq.jsonl"), "r") as faq_file, \
-                open(os.path.join(language_path, "embeddings.jsonl"), "r") as embeddings_file:
-            
+
+        with open(os.path.join(language_path, "faq.jsonl"), "r") as faq_file, open(
+            os.path.join(language_path, "embeddings.jsonl"), "r"
+        ) as embeddings_file:
+
             if consider_language:
                 labels_file = open(os.path.join(language_path, "labels.jsonl"), "r")
                 flags_file = open(os.path.join(language_path, "flags.jsonl"), "r")
-            
-            for i, (faq_offset, embeddings_offset) in enumerate(zip(faq_offsets, embeddings_offsets)):
-            
+
+            for i, (faq_offset, embeddings_offset) in enumerate(
+                zip(faq_offsets, embeddings_offsets)
+            ):
+
                 faq_file.seek(faq_offset)
                 if consider_language:
                     if i >= len(labels_offsets) or i >= len(flags_offsets):
@@ -54,7 +62,7 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                     labels_file.seek(labels_offsets[i])
                     flags_file.seek(flags_offsets[i])
                 embeddings_file.seek(embeddings_offset)
-                
+
                 while True:
                     faq_line = faq_file.readline().strip()
                     if consider_language:
@@ -73,7 +81,9 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                         question = faq_document["question"]
                         answer = faq_document["answer"]
                     except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line in {language}/faq.jsonl: {faq_line} ({e})")
+                        click.echo(
+                            f"Skipping invalid JSON line in {language}/faq.jsonl: {faq_line} ({e})"
+                        )
                         continue
 
                     # Break if scheme_host changes
@@ -93,15 +103,21 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                             topic = labels_document["topic"]
                             question_type = labels_document["question_type"]
                         except json.JSONDecodeError as e:
-                            click.echo(f"Skipping invalid JSON line in {language}/labels.jsonl: {labels_line} ({e})")
+                            click.echo(
+                                f"Skipping invalid JSON line in {language}/labels.jsonl: {labels_line} ({e})"
+                            )
                             continue
 
                         try:
                             flags_document = json.loads(flags_line)
                             filter = flags_document["filter"]
-                            near_duplicate_similarity = flags_document["near_duplicate_similarity"]
+                            near_duplicate_similarity = flags_document[
+                                "near_duplicate_similarity"
+                            ]
                         except json.JSONDecodeError as e:
-                            click.echo(f"Skipping invalid JSON line in {language}/flags.jsonl: {flags_line.strip()} ({e})")
+                            click.echo(
+                                f"Skipping invalid JSON line in {language}/flags.jsonl: {flags_line.strip()} ({e})"
+                            )
                             continue
 
                         # Check if filtered
@@ -114,7 +130,9 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                         embeddings_document = json.loads(embeddings_line)
                         embedding = embeddings_document["embedding"]
                     except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line in {language}/embeddings.jsonl: {embeddings_line} ({e})")
+                        click.echo(
+                            f"Skipping invalid JSON line in {language}/embeddings.jsonl: {embeddings_line} ({e})"
+                        )
                         continue
 
                     # Detect language code in URL path
@@ -133,14 +151,16 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                         documents[url_path] = {}
                     if not language in documents[url_path]:
                         documents[url_path][language] = []
-                    documents[url_path][language].append({
-                        "url": url,
-                        "question": question,
-                        "answer": answer,
-                        "topic": topic,
-                        "question_type": question_type,
-                        "embedding": embedding,
-                    })
+                    documents[url_path][language].append(
+                        {
+                            "url": url,
+                            "question": question,
+                            "answer": answer,
+                            "topic": topic,
+                            "question_type": question_type,
+                            "embedding": embedding,
+                        }
+                    )
 
             if consider_language:
                 labels_file.close()
@@ -182,7 +202,12 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
 
             # Stack embeddings and copy to GPU
             if not language in embeddings_dict:
-                embeddings = np.stack([document["embedding"] for document in documents[url_path][language]])
+                embeddings = np.stack(
+                    [
+                        document["embedding"]
+                        for document in documents[url_path][language]
+                    ]
+                )
                 embeddings = torch.Tensor(embeddings).cuda()
                 norm = torch.nn.functional.normalize(embeddings, p=2, dim=1)
                 embeddings_dict[language] = norm
@@ -196,13 +221,24 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                     continue
 
                 # Stack embeddings and copy to GPU
-                _embeddings = np.stack([document["embedding"] for document in documents[url_path][_language]])
+                _embeddings = np.stack(
+                    [
+                        document["embedding"]
+                        for document in documents[url_path][_language]
+                    ]
+                )
                 _embeddings = torch.Tensor(_embeddings).cuda()
                 _norm = torch.nn.functional.normalize(_embeddings, p=2, dim=1)
                 embeddings_dict[_language] = _norm
 
                 # Compute cosine similarity
-                similarity_matrix = torch.matmul(embeddings_dict[language], embeddings_dict[_language].T).cpu().numpy()
+                similarity_matrix = (
+                    torch.matmul(
+                        embeddings_dict[language], embeddings_dict[_language].T
+                    )
+                    .cpu()
+                    .numpy()
+                )
 
                 # Store maxima for each column
                 max_similarity_columns = np.max(similarity_matrix, axis=0)
@@ -219,18 +255,33 @@ def generate_candidates(scheme_host: str, languages: List[str], scheme_host_offs
                         "scheme_host": scheme_host,
                         "similarity": float(similarity_matrix[i, j]),
                         "languages": (language, _language),
-                        "urls": (documents[url_path][language][i]["url"], documents[url_path][_language][j]["url"]),
-                        "questions": (documents[url_path][language][i]["question"], documents[url_path][_language][j]["question"]),
-                        "answers": (documents[url_path][language][i]["answer"], documents[url_path][_language][j]["answer"]),
-                        "topics": (documents[url_path][language][i]["topic"], documents[url_path][_language][j]["topic"]),
-                        "question_types": (documents[url_path][language][i]["question_type"], documents[url_path][_language][j]["question_type"]),
+                        "urls": (
+                            documents[url_path][language][i]["url"],
+                            documents[url_path][_language][j]["url"],
+                        ),
+                        "questions": (
+                            documents[url_path][language][i]["question"],
+                            documents[url_path][_language][j]["question"],
+                        ),
+                        "answers": (
+                            documents[url_path][language][i]["answer"],
+                            documents[url_path][_language][j]["answer"],
+                        ),
+                        "topics": (
+                            documents[url_path][language][i]["topic"],
+                            documents[url_path][_language][j]["topic"],
+                        ),
+                        "question_types": (
+                            documents[url_path][language][i]["question_type"],
+                            documents[url_path][_language][j]["question_type"],
+                        ),
                     }
                     candidates.append(candidate)
 
         # Free memory
         del embeddings_dict
         torch.cuda.empty_cache()
-                
+
     return candidates
 
 
@@ -246,7 +297,9 @@ def pc_candidates(dataset_name: str, from_index: int, to_index: int):
     assert torch.cuda.is_available(), "CUDA is not available"
 
     # Read host languages file
-    scheme_hosts_languages_path = os.path.join(DATASETS_FOLDER, dataset_name, "results", "scheme_hosts_languages.json")
+    scheme_hosts_languages_path = os.path.join(
+        DATASETS_FOLDER, dataset_name, "results", "scheme_hosts_languages.json"
+    )
 
     # Initialize results path
     results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
@@ -264,7 +317,7 @@ def pc_candidates(dataset_name: str, from_index: int, to_index: int):
         language_path = os.path.join(results_path, language)
         if not os.path.isdir(language_path):
             continue
-        
+
         # Load offsets
         with open(os.path.join(language_path, "offsets.json"), "r") as offsets_file:
             _offsets = json.load(offsets_file)
@@ -276,10 +329,12 @@ def pc_candidates(dataset_name: str, from_index: int, to_index: int):
         with tqdm(total=len(scheme_hosts_languages), mininterval=10) as pbar:
 
             # Loop over all hosts
-            for i, (scheme_host, languages) in enumerate(scheme_hosts_languages.items()):
+            for i, (scheme_host, languages) in enumerate(
+                scheme_hosts_languages.items()
+            ):
                 if to_index > 0 and i >= to_index:
                     break
-                
+
                 # Update progress bar
                 pbar.update(1)
 
@@ -292,17 +347,34 @@ def pc_candidates(dataset_name: str, from_index: int, to_index: int):
                         continue
 
                 # Get offsets for this scheme + host
-                languages = [language for language in sorted(languages) if scheme_host in offsets[language]]
-                scheme_host_offsets = [offsets[language][scheme_host] for language in languages if scheme_host in offsets[language]]
+                languages = [
+                    language
+                    for language in sorted(languages)
+                    if scheme_host in offsets[language]
+                ]
+                scheme_host_offsets = [
+                    offsets[language][scheme_host]
+                    for language in languages
+                    if scheme_host in offsets[language]
+                ]
 
                 if len(languages) < 2:
                     continue
 
                 # Generate candidates
-                candidates.extend(generate_candidates(scheme_host, languages, scheme_host_offsets, dataset_name))
+                candidates.extend(
+                    generate_candidates(
+                        scheme_host, languages, scheme_host_offsets, dataset_name
+                    )
+                )
 
     # Save candidates to file
-    candidates_path = os.path.join(DATASETS_FOLDER, dataset_name, "results", f"candidates_{from_index}_{to_index}.jsonl")
+    candidates_path = os.path.join(
+        DATASETS_FOLDER,
+        dataset_name,
+        "results",
+        f"candidates_{from_index}_{to_index}.jsonl",
+    )
     click.echo(f"Save candidates to: {candidates_path}")
 
     # Write candidates to file
@@ -312,7 +384,7 @@ def pc_candidates(dataset_name: str, from_index: int, to_index: int):
             s = int(candidate["similarity"] * 100) / 100.0
             hist_similarities[s] = hist_similarities.get(s, 0) + 1
             file.write(json.dumps(candidate) + "\n")
-    
+
     # Compute statistics
     click.echo("Histogram of similarities:")
     for s, count in sorted(hist_similarities.items()):

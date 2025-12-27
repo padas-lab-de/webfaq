@@ -15,19 +15,21 @@ BATCH_SIZE = 1_000_000
 def _construct_document(doc):
     if isinstance(doc, str):
         return doc
-    elif 'title' in doc:
+    elif "title" in doc:
         return f'{doc["title"]} {doc["text"].strip()}'
     else:
-        return doc['text'].strip()
+        return doc["text"].strip()
 
 
 class JinaEmbeddingsV3Wrapper(torch.nn.Module):
     def __init__(
-            self,
-            pretrained_model_name='jinaai/jina-embeddings-v3',
+        self,
+        pretrained_model_name="jinaai/jina-embeddings-v3",
     ):
         super().__init__()
-        self.encoder = AutoModel.from_pretrained(pretrained_model_name, trust_remote_code=True)
+        self.encoder = AutoModel.from_pretrained(
+            pretrained_model_name, trust_remote_code=True
+        )
         self.encoder.cuda()
         self.encoder.eval()
 
@@ -37,7 +39,7 @@ class JinaEmbeddingsV3Wrapper(torch.nn.Module):
         *args,
         **kwargs,
     ):
-        return self.encoder.encode(sentences, *args, task='retrieval.query', **kwargs)
+        return self.encoder.encode(sentences, *args, task="retrieval.query", **kwargs)
 
     def encode_corpus(
         self,
@@ -46,14 +48,19 @@ class JinaEmbeddingsV3Wrapper(torch.nn.Module):
         **kwargs,
     ):
         _sentences = [_construct_document(sentence) for sentence in sentences]
-        return self.encoder.encode(_sentences, *args, task='retrieval.passage', **kwargs)
+        return self.encoder.encode(
+            _sentences, *args, task="retrieval.passage", **kwargs
+        )
 
     def get_instructions(self):
-        return [self.encoder._task_instructions[x] for x in ['retrieval.query', 'retrieval.passage']]
+        return [
+            self.encoder._task_instructions[x]
+            for x in ["retrieval.query", "retrieval.passage"]
+        ]
 
     def forward(self, *args, **kwargs):
-        task_id = self.encoder._adaptation_map['retrieval.passage']
-        num_examples = kwargs['input_ids'].shape[0]
+        task_id = self.encoder._adaptation_map["retrieval.passage"]
+        num_examples = kwargs["input_ids"].shape[0]
         adapter_mask = torch.full(
             (num_examples,), task_id, dtype=torch.int32, device=self.encoder.device
         )
@@ -131,8 +138,14 @@ def embed_jina(dataset_name: str):
         answer_embeddings = []
         for i_start in range(0, len(questions), BATCH_SIZE):
             i_end = min(i_start + BATCH_SIZE, len(questions))
-            question_embeddings.extend(model.encode_queries(questions[i_start:i_end], truncate_dim=512))
-            answer_embeddings.extend(model.encode_corpus([{"text": a} for a in answers[i_start:i_end]], truncate_dim=512))
+            question_embeddings.extend(
+                model.encode_queries(questions[i_start:i_end], truncate_dim=512)
+            )
+            answer_embeddings.extend(
+                model.encode_corpus(
+                    [{"text": a} for a in answers[i_start:i_end]], truncate_dim=512
+                )
+            )
 
         # Save embeddings to file
         click.echo(f"Writing file {embeddings_path}")

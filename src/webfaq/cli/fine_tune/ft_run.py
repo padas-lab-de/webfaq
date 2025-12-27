@@ -30,7 +30,7 @@ def ft_run(dataset_name: str):
         raise FileNotFoundError(f"Directory not found: {fine_tune_path}")
     if not os.path.isdir(fine_tune_path):
         raise NotADirectoryError(f"Path is not a directory: {fine_tune_path}")
-    
+
     # Initialize batched train and eval dataset
     train_examples_batched = []
 
@@ -49,18 +49,20 @@ def ft_run(dataset_name: str):
         with tqdm(total=num_lines, mininterval=10, desc="Train") as pbar:
 
             with open(os.path.join(language_path, "train.jsonl"), "r") as file:
-                
+
                 for line in file:
 
                     # Update progress bar
                     pbar.update(1)
-                    
+
                     try:
                         document = json.loads(line)
                         query = document["query"]
                         positive = document["positive"]
                     except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line in {language}/train.jsonl: {line.strip()} ({e})")
+                        click.echo(
+                            f"Skipping invalid JSON line in {language}/train.jsonl: {line.strip()} ({e})"
+                        )
                         continue
 
                     # Add to batch
@@ -85,7 +87,9 @@ def ft_run(dataset_name: str):
         for example in batch:
             train_examples.append(example)
 
-    output_dir = os.path.join(MODELS_FOLDER, dataset_name, "xlm-roberta-base-msmarco-ft")
+    output_dir = os.path.join(
+        MODELS_FOLDER, dataset_name, "xlm-roberta-base-msmarco-ft"
+    )
     os.makedirs(output_dir, exist_ok=True)
 
     # Train the model

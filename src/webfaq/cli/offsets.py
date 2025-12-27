@@ -32,13 +32,14 @@ def offsets(dataset_name: str):
 
         # Load Q&A pairs
         offsets = {}
-        with open(os.path.join(language_path, "faq.jsonl"), "r") as faq_file, \
-                open(os.path.join(language_path, "embeddings.jsonl"), "r") as embeddings_file:
-            
+        with open(os.path.join(language_path, "faq.jsonl"), "r") as faq_file, open(
+            os.path.join(language_path, "embeddings.jsonl"), "r"
+        ) as embeddings_file:
+
             if consider_labels:
                 labels_file = open(os.path.join(language_path, "labels.jsonl"), "r")
                 flags_file = open(os.path.join(language_path, "flags.jsonl"), "r")
-            
+
             current_scheme_host = None
             # counter = 0
             while True:
@@ -48,14 +49,14 @@ def offsets(dataset_name: str):
                     labels_offset = labels_file.tell()
                     flags_offset = flags_file.tell()
                 embeddings_offset = embeddings_file.tell()
-            
+
                 # Read lines
                 faq_line = faq_file.readline()
                 _ = embeddings_file.readline()
                 if consider_labels:
                     _ = labels_file.readline()
                     _ = flags_file.readline()
-            
+
                 # Check if EOF
                 if not faq_line:
                     break
@@ -65,7 +66,9 @@ def offsets(dataset_name: str):
                     faq_document = json.loads(faq_line)
                     scheme_host = faq_document["scheme_host"]
                 except json.JSONDecodeError as e:
-                    click.echo(f"Skipping invalid JSON line in faq.jsonl: {faq_line.strip()} ({e})")
+                    click.echo(
+                        f"Skipping invalid JSON line in faq.jsonl: {faq_line.strip()} ({e})"
+                    )
                     continue
 
                 # Check if scheme_host are the same as the previous one
@@ -77,7 +80,7 @@ def offsets(dataset_name: str):
                         offsets[current_scheme_host] = []
                     _offsets = {
                         "faq_offset": faq_offset,
-                        "embeddings_offset": embeddings_offset
+                        "embeddings_offset": embeddings_offset,
                     }
                     if consider_labels:
                         _offsets["labels_offset"] = labels_offset

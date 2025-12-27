@@ -4,16 +4,17 @@ import json
 import openai
 import dotenv
 import re
+import gzip
 from tqdm import tqdm
 from webfaq.config import *
 
 
-LIMIT = 1_000
+LIMIT = 2_000
 # LIMIT = 10
 THRESHOLD = 100
 
 
-PROMPT = """Please classify the following Q&A pair into one of the following topics:
+SYSTEM_PROMPT = """Please classify the following Q&A pair into one of the following topics:
 1) Products and Commercial Services
 2) Traveling and Hospitality
 3) Healthcare Services, Wellness and Lifestyle
@@ -23,9 +24,9 @@ PROMPT = """Please classify the following Q&A pair into one of the following top
 7) Legal Services, Regulations and Government
 8) General Information and Other
 
-Please answer only with the number of the topic.
+Please answer only with the number of the topic. Note that the title and description are optional and may not be present.
 
-Q&A pair: ¿Que restaurantes llevan comida domicilio en Los Cabos ### En el App de DiDifood encontraras mas de null restaurantes con entrega a domicilio en Los Cabos
+Q&A pair: ¿Que restaurantes llevan comida domicilio en Los Cabos ### En el App de DiDifood encontraras mas de null restaurantes con entrega a domicilio en Los Cabos ### Title: Comida rápida, Los 10 Mejores Restaurantes a Domicilio en Cabo San Lucas Cerca De Mí | Uber Eats
 Label: 2
 
 Q&A pair: चौघड़िया का क्या अर्थ है? ### चौघड़िया शब्द दो शब्दों का मेल है - चो, अर्थात् चार, और घड़िया, यानी घड़ी। हिंदू समय के अनुसार, प्रत्येक घड़ी, 24 मिनट के बराबर है। सूर्योदय से सूर्यास्त तक 30 घड़ी होती हैं जिन्हें 8 से विभाजित किया गया है। इसलिए, दिन में 8 चौघड़िया मुहूर्त और 8 रात्रि चौघड़िया मुहूर्त होते हैं। एक चौघड़िया 4 घड़ी (लगभग 96 मिनट) के बराबर होता है। अतः, एक चौघड़िया लगभग 1.5 घंटे तक रहता है।
@@ -34,30 +35,41 @@ Label: 8
 Q&A pair: Is DOT coin close to its All Time High price? ### DOT all time high price (ath) is €47.6. Its current price is €6.4. This means that the difference between Polkadot (DOT) All Time High price and DOT current price is -87%.
 Label: 6
 
-Q&A pair: Quel est le poids maximum pour un colis? ### Le poids maximum autorisé pour un colis Colissimo ou Chronopost est de 30 kg.
+Q&A pair: Quel est le poids maximum pour un colis? ### Le poids maximum autorisé pour un colis Colissimo ou Chronopost est de 30 kg. ### Title: FAQ Chronopost : réponses à vos questions | Chronopost ### Description: Trouvez rapidement des réponses aux questions fréquentes sur les services Chronopost : livraison, suivi, envoi de colis, réclamations et bien plus.
 Label: 1
+"""
 
-Q&A pair: {question} ### {answer}
+PROMPT = """Q&A pair: {text}
 Label: """
 
 
-def get_label(client, question, answer):
+def call_api(client, question, answer, title=None, description=None):
+    text = question + " ### " + answer
+    if title:
+        text += " ### Title: " + title
+    if description:
+        text += " ### Description: " + description
+    
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages = [
+        model="gpt-5-mini",
+        temperature=0,
+        messages=[
             {
                 "role": "system",
-                "content": PROMPT.format(question=question, answer=answer)
+                "content": SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": PROMPT.format(text=text),
             }
-        ]
+        ],
     )
 
     return response.choices[0].message.content
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
-def tc_annotate(dataset_name: str):
+def tc_annotate():
     """
     Annotate Q&A pairs with a topic label.
     """
@@ -65,11 +77,12 @@ def tc_annotate(dataset_name: str):
 
     # Initialize OpenAI client
     client = openai.OpenAI(
-        api_key=os.environ["OPENAI_API_KEY"]
+        api_key=os.environ["OPENAI_API_KEY"],
+        organization=os.environ["OPENAI_ORG_ID"]
     )
 
     # Initialize results path
-    results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
+    results_path = os.path.join(DATASETS_FOLDER, "faqs")
     if not os.path.exists(results_path):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
@@ -86,40 +99,54 @@ def tc_annotate(dataset_name: str):
 
         # Load Q&A pairs
         qa_pairs = []
-        with open(os.path.join(language_path, "faq.jsonl"), "r") as file:
+        for filename in sorted(os.listdir(language_path)):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+                continue
 
-            previous_scheme_host = None
-            for line in file:
-                # Load JSON line
-                _dict = json.loads(line)
-                question = _dict["question"]
-                answer = _dict["answer"]
+            click.echo(f"Reading file: {filename}")
 
-                # Skip Q&A pairs with the same scheme_host
-                scheme_host = _dict["scheme_host"]
-                if scheme_host == previous_scheme_host:
-                    continue
-                previous_scheme_host = scheme_host
+            with gzip.open(os.path.join(language_path, filename), "rt") as file:
 
-                # Append Q&A pair
-                qa_pairs.append((question, answer))
+                previous_origin = None
+                for line in file:
+                    # Load JSON line
+                    _dict = json.loads(line)
+                    question = _dict["question"]
+                    answer = _dict["answer"]
+                    title = _dict["title"]
+                    description = _dict["description"]
 
-                # Break if the limit plus buffer is reached
-                if len(qa_pairs) >= LIMIT + 10:
-                    break
+                    # Skip Q&A pairs with the same origin (scheme + host)
+                    origin = _dict["origin"]
+                    if origin == previous_origin:
+                        continue
+                    previous_origin = origin
+
+                    # Append Q&A pair
+                    qa_pairs.append((question, answer, title, description))
+
+                    # Break if the limit plus buffer is reached
+                    if len(qa_pairs) >= LIMIT + 10:
+                        break
+
+            # Break if the limit plus buffer is reached
+            if len(qa_pairs) >= LIMIT + 10:
+                break
 
         # Skip if the number of Q&A pairs is less than 100
-        if len(qa_pairs) < THRESHOLD and len(qa_pairs) < LIMIT:
+        if len(qa_pairs) < min(THRESHOLD, LIMIT):
             click.echo("Skipping language due to insufficient Q&A pairs")
             continue
-        
+
         # Annotate Q&A pairs
         annotated_qa_pairs_language = []
-        with tqdm(total=min(len(qa_pairs), LIMIT), desc=f"Annotate Q&A pairs for {language}") as pbar:
+        with tqdm(
+            total=min(len(qa_pairs), LIMIT), desc=f"Annotate Q&A pairs for {language}"
+        ) as pbar:
 
-            for question, answer in qa_pairs:
+            for question, answer, title, description in qa_pairs:
                 # Annotate using an LLM
-                label = get_label(client, question, answer)
+                label = call_api(client, question, answer, title, description)
 
                 # Parse label
                 label = label.strip()
@@ -138,12 +165,16 @@ def tc_annotate(dataset_name: str):
                     continue
 
                 # Append annotated Q&A pair
-                annotated_qa_pairs_language.append({
-                    "language": language,
-                    "label": label,
-                    "question": question,
-                    "answer": answer
-                })
+                annotated_qa_pairs_language.append(
+                    {
+                        "language": language,
+                        "label": label,
+                        "question": question,
+                        "answer": answer,
+                        "title": title,
+                        "description": description,
+                    }
+                )
 
                 # Update progress bar
                 pbar.update(1)
@@ -156,7 +187,9 @@ def tc_annotate(dataset_name: str):
         annotated_qa_pairs.extend(annotated_qa_pairs_language)
 
         # Save annotated Q&A pairs (after each language)
-        annotations_path = os.path.join(RESOURCES_FOLDER, dataset_name, "tc_annotations.jsonl")
+        annotations_path = os.path.join(
+            RESOURCES_FOLDER, "tc_annotations.jsonl"
+        )
         os.makedirs(os.path.dirname(annotations_path), exist_ok=True)
         with open(annotations_path, "w") as file:
             for qa_pair in annotated_qa_pairs:

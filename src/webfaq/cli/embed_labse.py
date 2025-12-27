@@ -10,13 +10,15 @@ from webfaq.config import *
 BATCH_SIZE = 1_000_000
 
 
-class LaBSE_Wrapper():
+class LaBSE_Wrapper:
     def __init__(self):
         self.model = SentenceTransformer("LaBSE")
 
     def encode(self, sentences):
-        return self.model.encode(sentences, show_progress_bar=True, convert_to_numpy=True)
-    
+        return self.model.encode(
+            sentences, show_progress_bar=True, convert_to_numpy=True
+        )
+
     def get_sentence_embedding_dimension(self):
         return self.model.get_sentence_embedding_dimension()
 
@@ -81,7 +83,10 @@ def embed_labse(dataset_name: str):
         embeddings = []
         for i_start in range(0, len(questions), BATCH_SIZE):
             i_end = min(i_start + BATCH_SIZE, len(questions))
-            sentences = [f"{q} {a}".strip() for q, a in zip(questions[i_start:i_end], answers[i_start:i_end])]
+            sentences = [
+                f"{q} {a}".strip()
+                for q, a in zip(questions[i_start:i_end], answers[i_start:i_end])
+            ]
             embeddings.extend(model.encode(sentences))
 
         # Save embeddings to file
