@@ -5,6 +5,7 @@ import openai
 import dotenv
 import re
 import gzip
+import time
 from tqdm import tqdm
 from webfaq.config import *
 
@@ -52,7 +53,6 @@ def call_api(client, question, answer, title=None, description=None):
     
     response = client.chat.completions.create(
         model="gpt-5-mini",
-        temperature=0,
         messages=[
             {
                 "role": "system",
@@ -135,53 +135,67 @@ def tc_annotate():
 
         # Skip if the number of Q&A pairs is less than 100
         if len(qa_pairs) < min(THRESHOLD, LIMIT):
-            click.echo("Skipping language due to insufficient Q&A pairs")
+            click.echo("Skipping language due to insufficient number of Q&A pairs")
             continue
 
-        # Annotate Q&A pairs
-        annotated_qa_pairs_language = []
-        with tqdm(
-            total=min(len(qa_pairs), LIMIT), desc=f"Annotate Q&A pairs for {language}"
-        ) as pbar:
+        retry = True
+        num_retries = 0
+        while retry and num_retries < 3:
+            try:
+                # Annotate Q&A pairs
+                annotated_qa_pairs_language = []
+                with tqdm(
+                    total=len(qa_pairs), desc=f"Annotate Q&A pairs for {language}"
+                ) as pbar:
 
-            for question, answer, title, description in qa_pairs:
-                # Annotate using an LLM
-                label = call_api(client, question, answer, title, description)
+                    for question, answer, title, description in qa_pairs:
+                        # Annotate using an LLM
+                        label = call_api(client, question, answer, title, description)
 
-                # Parse label
-                label = label.strip()
-                if re.match(r"^[1-8]$", label):
-                    label = int(label)
-                elif re.match(r"^Label: [1-8]$", label):
-                    label = int(label[-1])
-                elif re.match(r"^label: [1-8]$", label):
-                    label = int(label[-1])
-                elif re.match(r"^[1-8]\)$", label):
-                    label = int(label[0])
-                elif re.match(r"^[1-8]\)\s+.*", label):
-                    label = int(label[0])
-                else:
-                    click.echo(f"Invalid label: {label}", err=True)
-                    continue
+                        # Parse label
+                        label = label.strip()
+                        if re.match(r"^[1-8]$", label):
+                            label = int(label)
+                        elif re.match(r"^Label: [1-8]$", label):
+                            label = int(label[-1])
+                        elif re.match(r"^label: [1-8]$", label):
+                            label = int(label[-1])
+                        elif re.match(r"^[1-8]\)$", label):
+                            label = int(label[0])
+                        elif re.match(r"^[1-8]\)\s+.*", label):
+                            label = int(label[0])
+                        else:
+                            click.echo(f"Invalid label: {label}", err=True)
+                            continue
 
-                # Append annotated Q&A pair
-                annotated_qa_pairs_language.append(
-                    {
-                        "language": language,
-                        "label": label,
-                        "question": question,
-                        "answer": answer,
-                        "title": title,
-                        "description": description,
-                    }
-                )
+                        # Append annotated Q&A pair
+                        annotated_qa_pairs_language.append(
+                            {
+                                "language": language,
+                                "label": label,
+                                "question": question,
+                                "answer": answer,
+                                "title": title,
+                                "description": description,
+                            }
+                        )
 
-                # Update progress bar
-                pbar.update(1)
+                        # Update progress bar
+                        pbar.update(1)
 
-                # Break if the limit is reached
-                if len(annotated_qa_pairs_language) >= LIMIT:
-                    break
+                        # Break if the limit is reached
+                        if len(annotated_qa_pairs_language) >= LIMIT:
+                            break
+
+                retry = False
+            except openai.RateLimitError as e:
+                click.echo(f"OpenAI API error: {e}", err=True)
+                retry = True
+                num_retries += 1
+                click.echo(f"Retrying [{num_retries}]...", err=True)
+
+                # Wait before retrying
+                time.sleep(60 * 60 * 2**(num_retries - 1))  # Exponential backoff
 
         # Append annotated Q&A pairs for the current language
         annotated_qa_pairs.extend(annotated_qa_pairs_language)
