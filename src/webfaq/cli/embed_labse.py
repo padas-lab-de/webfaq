@@ -1,13 +1,15 @@
 import click
 import os
 import json
+import gzip
+import numpy as np
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 from webfaq.utils import *
 from webfaq.config import *
 
 
-BATCH_SIZE = 1_000_000
+BATCH_SIZE = 50_000
 
 
 class LaBSE_Wrapper:
@@ -24,8 +26,7 @@ class LaBSE_Wrapper:
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
-def embed_labse(dataset_name: str):
+def embed_labse():
     """
     Compute the vector embeddings for the extracted Q&A pairs.
     """
@@ -33,7 +34,7 @@ def embed_labse(dataset_name: str):
     model = LaBSE_Wrapper()
 
     # Initialize results path
-    results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
+    results_path = os.path.join(DATASETS_FOLDER, "faqs")
     if not os.path.exists(results_path):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
@@ -45,64 +46,74 @@ def embed_labse(dataset_name: str):
         if not os.path.isdir(language_path):
             continue
 
+        # if language != "jpn":  # < "jpn"
+        #     click.echo(f"Skipping language: {language}")
+        #     continue
+
         click.echo(f"Language: {language}")
 
-        # Check if embeddings already exist
-        embeddings_path = os.path.join(language_path, "embeddings.jsonl")
-        if os.path.exists(embeddings_path):
-            click.echo(f"Embeddings already exist: {embeddings_path}")
-            continue
+        for filename in sorted(os.listdir(language_path)):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+                continue
 
-        # Count number of Q&A pairs
-        num_lines = count_lines(os.path.join(language_path, "faq.jsonl"))
+            click.echo(f"Reading file: {filename}")
 
-        # Load Q&A pairs
-        ids = []
-        questions = []
-        answers = []
-        with tqdm(total=num_lines, mininterval=10) as pbar:
+            # Check if embeddings already exist
+            embeddings_path = os.path.join(language_path, filename.replace("faqs_sorted_", "labse_embeddings_"))
+            if os.path.exists(embeddings_path):
+                click.echo(f"Embeddings already exist: {embeddings_path}")
+                # continue
 
-            with open(os.path.join(language_path, "faq.jsonl"), "r") as file:
+                ids = []
+                embeddings = []
+                with gzip.open(embeddings_path, "rt", encoding="UTF-8") as file:
+                    for line in tqdm(file):
+                        data = json.loads(line)
+                        ids.append(data["id"])
+                        embedding = np.array(data["embedding"], dtype=np.float16)
+                        embeddings.append(embedding)
 
-                for line in file:
-                    try:
-                        document = json.loads(line)
-                        ids.append(document["id"])
-                        questions.append(document["question"])
-                        answers.append(document["answer"])
-                    except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})")
-                        ids.append("")
-                        questions.append("")
-                        answers.append("")
+            else:
 
-                    # Update progress bar
-                    pbar.update(1)
+                # Load Q&A pairs
+                ids = []
+                questions = []
+                answers = []
 
-        # Compute embeddings for questions and answers
-        embeddings = []
-        for i_start in range(0, len(questions), BATCH_SIZE):
-            i_end = min(i_start + BATCH_SIZE, len(questions))
-            sentences = [
-                f"{q} {a}".strip()
-                for q, a in zip(questions[i_start:i_end], answers[i_start:i_end])
-            ]
-            embeddings.extend(model.encode(sentences))
+                with gzip.open(os.path.join(language_path, filename), "rt", encoding="UTF-8") as file:
 
-        # Save embeddings to file
-        click.echo(f"Writing file {embeddings_path}")
-        with tqdm(total=len(embeddings), mininterval=10) as pbar:
+                    for line in tqdm(file):
+                        try:
+                            document = json.loads(line)
+                            ids.append(document["id"])
+                            questions.append(document["question"])
+                            answers.append(document["answer"])
+                        except json.JSONDecodeError as e:
+                            click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})", err=True)
+                            ids.append("")
+                            questions.append("")
+                            answers.append("")
 
-            with open(embeddings_path, "w") as file:
+                # Compute embeddings for questions and answers
+                embeddings = []
+                for i_start in range(0, len(questions), BATCH_SIZE):
+                    i_end = min(i_start + BATCH_SIZE, len(questions))
+                    sentences = [
+                        f"{q} {a}".strip()
+                        for q, a in zip(questions[i_start:i_end], answers[i_start:i_end])
+                    ]
+                    for embedding in model.encode(sentences):
+                        embedding = embedding.astype(np.float16)
+                        embeddings.append(embedding)
 
-                for i in range(len(embeddings)):
+            # Save embeddings to file
+            click.echo(f"Writing file {embeddings_path}")
+            with gzip.open(embeddings_path, "wt", encoding="UTF-8") as file:
+                for i in range(len(ids)):
                     document = {
                         "id": ids[i],
                         "embedding": embeddings[i].tolist(),
                     }
                     file.write(json.dumps(document) + "\n")
-
-                    # Update progress bar
-                    pbar.update(1)
 
     click.echo("Done")

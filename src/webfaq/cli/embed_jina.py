@@ -3,18 +3,19 @@ import os
 import json
 import gzip
 import torch
+import numpy as np
 from tqdm import tqdm
 from transformers import AutoModel
 from webfaq.utils import *
 from webfaq.config import *
 
 
-BATCH_SIZE = 1_000_000
+BATCH_SIZE = 50_000
 
 
 def _construct_document(doc):
     if isinstance(doc, str):
-        return doc
+        return doc.strip()
     elif "title" in doc:
         return f'{doc["title"]} {doc["text"].strip()}'
     else:
@@ -76,8 +77,7 @@ class JinaEmbeddingsV3Wrapper(torch.nn.Module):
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
-def embed_jina(dataset_name: str):
+def embed_jina():
     """
     Compute the vector embeddings for the extracted Q&A pairs.
     """
@@ -87,7 +87,7 @@ def embed_jina(dataset_name: str):
     model = JinaEmbeddingsV3Wrapper(pretrained_model_name)
 
     # Initialize results path
-    results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
+    results_path = os.path.join(DATASETS_FOLDER, "faqs")
     if not os.path.exists(results_path):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
@@ -99,65 +99,64 @@ def embed_jina(dataset_name: str):
         if not os.path.isdir(language_path):
             continue
 
-        click.echo(f"Language: {language}")
-
-        # Check if embeddings already exist
-        embeddings_path = os.path.join(language_path, "retrieval_embeddings.jsonl.gz")
-        if os.path.exists(embeddings_path):
-            click.echo(f"Embeddings already exist: {embeddings_path}")
+        if language < "yid":
+            click.echo(f"Skipping language: {language}")
             continue
 
-        # Count number of Q&A pairs
-        num_lines = count_lines(os.path.join(language_path, "faq.jsonl"))
+        click.echo(f"Language: {language}")
 
-        # Load Q&A pairs
-        ids = []
-        questions = []
-        answers = []
-        with tqdm(total=num_lines, mininterval=10) as pbar:
+        for filename in sorted(os.listdir(language_path)):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+                continue
 
-            with open(os.path.join(language_path, "faq.jsonl"), "r") as file:
+            click.echo(f"Reading file: {filename}")
 
-                for line in file:
+            # Check if embeddings already exist
+            embeddings_path = os.path.join(language_path, filename.replace("faqs_sorted_", "jina_embeddings_"))
+            if os.path.exists(embeddings_path):
+                click.echo(f"Embeddings already exist: {embeddings_path}")
+                continue
+
+            # Load Q&A pairs
+            ids = []
+            questions = []
+            answers = []
+
+            with gzip.open(os.path.join(language_path, filename), "rt", encoding="UTF-8") as file:
+
+                for line in tqdm(file):
                     try:
                         document = json.loads(line)
                         ids.append(document["id"])
                         questions.append(document["question"])
                         answers.append(document["answer"])
                     except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})")
+                        click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})", err=True)
                         ids.append("")
                         questions.append("")
                         answers.append("")
 
-                    # Update progress bar
-                    pbar.update(1)
-
-        # Compute embeddings for questions and answers
-        question_embeddings = []
-        answer_embeddings = []
-        for i_start in range(0, len(questions), BATCH_SIZE):
-            i_end = min(i_start + BATCH_SIZE, len(questions))
-            question_embeddings.extend(
-                model.encode_queries(questions[i_start:i_end], truncate_dim=512)
-            )
-            answer_embeddings.extend(
-                model.encode_corpus(
-                    [{"text": a} for a in answers[i_start:i_end]], truncate_dim=512
+            # Compute embeddings for questions and answers
+            question_embeddings = []
+            answer_embeddings = []
+            for i_start in tqdm(range(0, len(questions), BATCH_SIZE)):
+                i_end = min(i_start + BATCH_SIZE, len(questions))
+                question_embeddings.extend(
+                    model.encode_queries(questions[i_start:i_end], truncate_dim=512).astype(np.float16)
                 )
-            )
+                answer_embeddings.extend(
+                    model.encode_corpus(answers[i_start:i_end], truncate_dim=512).astype(np.float16)
+                )
 
-        # Save embeddings to file
-        click.echo(f"Writing file {embeddings_path}")
-        str_dump = ""
-        for i in range(len(ids)):
-            document = {
-                "id": ids[i],
-                "question_embedding": question_embeddings[i].tolist(),
-                "answer_embedding": answer_embeddings[i].tolist(),
-            }
-            str_dump += json.dumps(document) + "\n"
-        with gzip.open(embeddings_path, "wt", encoding="utf-8") as file:
-            file.write(str_dump)
+            # Save embeddings to file
+            click.echo(f"Writing file {embeddings_path}")
+            with gzip.open(embeddings_path, "wt", encoding="UTF-8") as file:
+                for i in tqdm(range(len(ids))):
+                    document = {
+                        "id": ids[i],
+                        "question_embedding": question_embeddings[i].tolist(),
+                        "answer_embedding": answer_embeddings[i].tolist(),
+                    }
+                    file.write(json.dumps(document) + "\n")
 
     click.echo("Done")
