@@ -9,9 +9,8 @@ THRESHOLD_SCORES = [80, 85, 90]
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
 @click.argument("filename_pattern", type=str)
-def pc_assess(dataset_name: str, filename_pattern: str):
+def pc_assess(filename_pattern: str):
     """
     Assess the scored parallel candidates.
     """
@@ -27,7 +26,7 @@ def pc_assess(dataset_name: str, filename_pattern: str):
 
     # Load the JSONL files
     scores_paths = glob(
-        os.path.join(DATASETS_FOLDER, dataset_name, "results", filename_pattern)
+        os.path.join(DATASETS_FOLDER, "results", filename_pattern)
     )
     click.echo(f"Found {len(scores_paths)} scores files")
 

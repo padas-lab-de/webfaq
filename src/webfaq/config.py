@@ -2,7 +2,7 @@ import json
 import os
 from typing import *
 
-LANGUAGES_100_SCHEME_HOSTS = [
+LANGUAGES_100_ORIGINS = [
     "ara",
     "aze",
     "ben",

@@ -308,11 +308,11 @@ def statistics():
 
     print(_statistics)
 
-    # # Save results to file
-    # click.echo(f"Writing file {statistics_path}")
-    # with open(statistics_path, "w") as file:
-    #     json.dump(_statistics, file, indent=4)
-    # click.echo(f"Writing file {scheme_hosts_languages_path}")
+    # Save results to file
+    click.echo(f"Writing file {statistics_path}")
+    with open(statistics_path, "w") as file:
+        json.dump(_statistics, file, indent=4)
+    click.echo(f"Writing file {scheme_hosts_languages_path}")
     # with open(scheme_hosts_languages_path, "w") as file:
     #     json.dump(_scheme_hosts_languages_07, file, indent=4)
 

@@ -1,17 +1,19 @@
 import click
 import os
 import json
+import gzip
+from tqdm import tqdm
+from webfaq.utils import *
 from webfaq.config import *
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
-def offsets(dataset_name: str):
+def offsets():
     """
     Compute the offsets for each combination of scheme and host in the extracted Q&A pairs.
     """
     # Initialize results path
-    results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
+    results_path = os.path.join(DATASETS_FOLDER, "faqs")
     if not os.path.exists(results_path):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
@@ -23,82 +25,94 @@ def offsets(dataset_name: str):
         if not os.path.isdir(language_path):
             continue
 
-        click.echo(f"Language: {language}")
-
         # if language == "eng":
         #     continue
 
-        consider_labels = language in LANGUAGES_100_SCHEME_HOSTS
+        click.echo(f"Language: {language}")
 
-        # Load Q&A pairs
-        offsets = {}
-        with open(os.path.join(language_path, "faq.jsonl"), "r") as faq_file, open(
-            os.path.join(language_path, "embeddings.jsonl"), "r"
-        ) as embeddings_file:
+        for filename in sorted(os.listdir(language_path)):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+                continue
 
-            if consider_labels:
-                labels_file = open(os.path.join(language_path, "labels.jsonl"), "r")
-                flags_file = open(os.path.join(language_path, "flags.jsonl"), "r")
+            # if filename < "faqs_sorted_4.jsonl.gz":
+            #     continue
 
-            current_scheme_host = None
-            # counter = 0
-            while True:
-                # Track offsets
-                faq_offset = faq_file.tell()
-                if consider_labels:
-                    labels_offset = labels_file.tell()
-                    flags_offset = flags_file.tell()
-                embeddings_offset = embeddings_file.tell()
+            click.echo(f"Reading file: {filename}")
 
-                # Read lines
-                faq_line = faq_file.readline()
-                _ = embeddings_file.readline()
-                if consider_labels:
-                    _ = labels_file.readline()
-                    _ = flags_file.readline()
+            # Check if offsets already exist
+            offsets_path = os.path.join(language_path, filename.replace("faqs_sorted_", "offsets_"))
+            if os.path.exists(offsets_path):
+                click.echo(f"Offsets already exist: {offsets_path}")
+                continue
 
-                # Check if EOF
-                if not faq_line:
-                    break
+            # Load Q&A pairs
+            offsets = {}
 
-                # Extract URL and scheme_host
-                try:
-                    faq_document = json.loads(faq_line)
-                    scheme_host = faq_document["scheme_host"]
-                except json.JSONDecodeError as e:
-                    click.echo(
-                        f"Skipping invalid JSON line in faq.jsonl: {faq_line.strip()} ({e})"
-                    )
-                    continue
+            with gzip.open(os.path.join(language_path, filename), "rt", encoding="UTF-8") as faq_file, gzip.open(
+                os.path.join(language_path, filename.replace("faqs_sorted_", "semantic_similarity_")), "rt", encoding="UTF-8"
+            ) as semantic_similarity_file, gzip.open(
+                os.path.join(language_path, filename.replace("faqs_sorted_", "labels_")), "rt", encoding="UTF-8"
+            ) as labels_file, gzip.open(
+                os.path.join(language_path, filename.replace("faqs_sorted_", "labse_embeddings_")), "rt", encoding="UTF-8"
+            ) as labse_embeddings_file:
+                
+                with tqdm() as pbar:
 
-                # Check if scheme_host are the same as the previous one
-                if current_scheme_host != scheme_host:
-                    # Update current scheme_host
-                    current_scheme_host = scheme_host
+                    current_origin = None
+                    # counter = 0
+                    while True:
+                        # Update progress bar
+                        pbar.update(1)
 
-                    if not current_scheme_host in offsets:
-                        offsets[current_scheme_host] = []
-                    _offsets = {
-                        "faq_offset": faq_offset,
-                        "embeddings_offset": embeddings_offset,
-                    }
-                    if consider_labels:
-                        _offsets["labels_offset"] = labels_offset
-                        _offsets["flags_offset"] = flags_offset
-                    offsets[current_scheme_host].append(_offsets)
+                        # Track offsets
+                        faq_offset = faq_file.tell()
+                        semantic_similarity_file_offset = semantic_similarity_file.tell()
+                        labels_offset = labels_file.tell()
+                        labse_embeddings_offset = labse_embeddings_file.tell()
 
-                # counter += 1
-                # if counter > 10:
-                #     break
+                        # Read lines
+                        faq_line = faq_file.readline()
+                        _ = semantic_similarity_file.readline()
+                        _ = labels_file.readline()
+                        _ = labse_embeddings_file.readline()
 
-            if consider_labels:
-                labels_file.close()
-                flags_file.close()
+                        # Check if EOF
+                        if not faq_line:
+                            break
 
-        # Save offsets to file
-        offsets_path = os.path.join(language_path, "offsets.json")
-        click.echo(f"Writing file {offsets_path}")
-        with open(offsets_path, "w") as file:
-            json.dump(offsets, file, indent=2)
+                        # Extract URL and origin
+                        try:
+                            faq_document = json.loads(faq_line)
+                            origin = faq_document["origin"]
+                        except json.JSONDecodeError as e:
+                            click.echo(
+                                f"Skipping invalid JSON line in faq.jsonl: {faq_line.strip()} ({e})"
+                            )
+                            continue
+
+                        # Check if origin are the same as the previous one
+                        if current_origin != origin:
+                            # Update current origin
+                            current_origin = origin
+
+                            if not current_origin in offsets:
+                                offsets[current_origin] = []
+                            _offsets = {
+                                "faq_offset": faq_offset,
+                                "semantic_similarity_file_offset": semantic_similarity_file_offset,
+                                "labels_offset": labels_offset,
+                                "labse_embeddings_offset": labse_embeddings_offset,
+                            }
+                            offsets[current_origin].append(_offsets)
+
+                        # counter += 1
+                        # if counter > 10:
+                        #     break
+
+            # Save offsets to file
+            offsets_path = os.path.join(language_path, filename.replace("faqs_sorted_", "offsets_"))
+            click.echo(f"Writing file {offsets_path}")
+            with gzip.open(offsets_path, "wt", encoding="UTF-8") as file:
+                json.dump(offsets, file, indent=2)
 
     click.echo("Done")

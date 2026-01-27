@@ -99,10 +99,6 @@ def embed_jina():
         if not os.path.isdir(language_path):
             continue
 
-        if language < "yid":
-            click.echo(f"Skipping language: {language}")
-            continue
-
         click.echo(f"Language: {language}")
 
         for filename in sorted(os.listdir(language_path)):

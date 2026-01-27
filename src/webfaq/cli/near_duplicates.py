@@ -38,13 +38,12 @@ def blockwise_matmul(matrix, block_size=4_096):
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
-def near_duplicates(dataset_name: str):
+def near_duplicates():
     """
     Compute near-duplicate questions for the extracted Q&A pairs.
     """
     # Initialize results path
-    results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
+    results_path = os.path.join(DATASETS_FOLDER, "faqs")
     if not os.path.exists(results_path):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
@@ -56,16 +55,10 @@ def near_duplicates(dataset_name: str):
         if not os.path.isdir(language_path):
             continue
 
-        if not language in LANGUAGES_100_SCHEME_HOSTS:
-            continue
-
-        click.echo(f"Language: {language}")
-
         if language != "eng":
             continue
 
-        # if language <= "deu":
-        #     continue
+        click.echo(f"Language: {language}")
 
         # Initialize flags and list of ids
         flags = []

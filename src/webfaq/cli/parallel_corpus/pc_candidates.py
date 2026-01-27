@@ -31,7 +31,7 @@ def generate_candidates(
         language_path = os.path.join(DATASETS_FOLDER, dataset_name, "results", language)
 
         # Skip if language has less than 100 scheme_hosts
-        consider_language = language in LANGUAGES_100_SCHEME_HOSTS
+        consider_language = language in LANGUAGES_100_ORIGINS
 
         # Load offsets
         faq_offsets = [offset["faq_offset"] for offset in _offsets]
@@ -286,10 +286,9 @@ def generate_candidates(
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
 @click.argument("from_index", type=int, default=0)
 @click.argument("to_index", type=int, default=-1)
-def pc_candidates(dataset_name: str, from_index: int, to_index: int):
+def pc_candidates(from_index: int, to_index: int):
     """
     Generate candidate pairs for parallel corpus extraction.
     """
@@ -298,11 +297,11 @@ def pc_candidates(dataset_name: str, from_index: int, to_index: int):
 
     # Read host languages file
     scheme_hosts_languages_path = os.path.join(
-        DATASETS_FOLDER, dataset_name, "results", "scheme_hosts_languages.json"
+        DATASETS_FOLDER, "faqs", "scheme_hosts_languages.json"
     )
 
     # Initialize results path
-    results_path = os.path.join(DATASETS_FOLDER, dataset_name, "results")
+    results_path = os.path.join(DATASETS_FOLDER, "faqs")
     if not os.path.exists(results_path):
         raise FileNotFoundError(f"Directory not found: {results_path}")
     if not os.path.isdir(results_path):
