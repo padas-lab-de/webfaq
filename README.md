@@ -1,3 +1,6 @@
+> [!NOTE]
+> The most recent code is in the branch v2. For all further information regarding WebFAQ 2.0, please have a look at our [HuggingFace repository](https://huggingface.co/datasets/michaeldinzinger/webfaq-v2).
+
 # WebFAQ
 
 The **WebFAQ Q&A Dataset** is a broad-coverage corpus of **96 million** natural question-answer (QA) pairs in **75 languages**, gathered from FAQ pages on the web. It leverages structured [schema.org FAQPage](https://schema.org/FAQPage) annotations, making it a unique resource for large-scale Question Answering research. Each entry includes a question, the corresponding answer, and additional metadata such as language, topic, and question type.
