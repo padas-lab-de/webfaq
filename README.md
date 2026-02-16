@@ -3,7 +3,7 @@
 
 # WebFAQ 2.0
 
-WebFAQ 2.0 is a large-scale multilingual dataset of 198 million natural question–answer pairs across 104 languages, mined from structured FAQ pages on the web.
+WebFAQ 2.0 is a large-scale multilingual dataset of 198 million natural question–answer pairs across 108 languages, mined from structured FAQ pages on the web.
 
 It is the successor of the original WebFAQ (v1) dataset (96M QAs, 75 languages): 👉 [https://huggingface.co/datasets/PaDaS-Lab/webfaq](https://huggingface.co/datasets/PaDaS-Lab/webfaq)
 
