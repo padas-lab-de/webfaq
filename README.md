@@ -55,6 +55,19 @@ cd fastText
 pip install .
 ```
 
+## Development
+
+### Run Code Formatting
+
+To run the code formatting, you can use the following command:
+
+```console
+isort .
+black .
+```
+
+The order of the commands is important. `isort` will sort the imports in the files, and `black` will format the code.
+
 ## Run extraction code
 
 First, you need to download Open Web Index (OWI) datasets. You can download datasets via the [OWIlix](https://openwebsearcheu-public.pages.it4i.eu/owi-cli/index.html) command-line tool. After downloading datasets, they are located in the local cache (typically `~/.owi/public/main/`).
@@ -63,6 +76,7 @@ To extract the QA pairs from OWI datasets, run the following command:
 
 ```console
 webfaq extract
+webfaq sort
 ```
 
 The extracted QA pairs will be stored in the `datasets/faqs/` directory.

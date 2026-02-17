@@ -1,286 +1,242 @@
-import click
-import os
+import gzip
 import json
-import torch
+import os
 import re
-import numpy as np
-from tqdm import tqdm
-from webfaq.utils import *
-from webfaq.config import *
 
+import click
+import numpy as np
+import torch
+from tqdm import tqdm
+
+from webfaq.config import *
+from webfaq.utils import *
 
 THRESHOLD_LABSE_SIMILARITY = 0.8
-LIMIT_QUESTIONS_SIMILARITY = 0.7
+THRESHOLD_QUESTION_ANSWER_SIMILARITY = 0.5
 
 
 def generate_candidates(
-    scheme_host: str,
+    origin: str,
     languages: List[str],
-    scheme_host_offsets: List[List[Dict[str, int]]],
-    dataset_name: str,
+    origin_offsets: List[List[Dict[str, int]]],
 ):
     """
-    Given a 'scheme_host' string, a set of languages, and a threshold,
+    Given a 'origin' string, a set of languages, and a threshold,
     returns candidate documents (plus scores) that match cross-lingually.
     """
     # Initialize documents dictionary
     documents = {}
 
     # For each language, open the corresponding file and add relevant docs
-    for language, _offsets in zip(languages, scheme_host_offsets):
-        language_path = os.path.join(DATASETS_FOLDER, dataset_name, "results", language)
-
-        # Skip if language has less than 100 scheme_hosts
-        consider_language = language in LANGUAGES_100_ORIGINS
+    for language, _offsets in zip(languages, origin_offsets):
+        language_path = os.path.join(DATASETS_FOLDER, "faqs", language)
 
         # Load offsets
         faq_offsets = [offset["faq_offset"] for offset in _offsets]
-        if consider_language:
-            labels_offsets = [offset["labels_offset"] for offset in _offsets]
-            flags_offsets = [offset["flags_offset"] for offset in _offsets]
-        embeddings_offsets = [offset["embeddings_offset"] for offset in _offsets]
+        # semantic_similarity_offsets = [offset["semantic_similarity_offset"] for offset in _offsets]
+        # semantic_similarity_offsets = [offset["semantic_similarity_file_offset"] for offset in _offsets]
+        semantic_similarity_offsets = []
+        for offset in _offsets:
+            assert (
+                "semantic_similarity_offset" in offset
+                or "semantic_similarity_file_offset" in offset
+            )
+            if "semantic_similarity_offset" in offset:
+                semantic_similarity_offsets.append(offset["semantic_similarity_offset"])
+            else:
+                semantic_similarity_offsets.append(
+                    offset["semantic_similarity_file_offset"]
+                )
+        labse_embeddings_offsets = [
+            offset["labse_embeddings_offset"] for offset in _offsets
+        ]
 
         # Initialize set of questions
         set_questions = set()
 
-        with open(os.path.join(language_path, "faq.jsonl"), "r") as faq_file, open(
-            os.path.join(language_path, "embeddings.jsonl"), "r"
-        ) as embeddings_file:
-
-            if consider_language:
-                labels_file = open(os.path.join(language_path, "labels.jsonl"), "r")
-                flags_file = open(os.path.join(language_path, "flags.jsonl"), "r")
-
-            for i, (faq_offset, embeddings_offset) in enumerate(
-                zip(faq_offsets, embeddings_offsets)
+        for filename in sorted(os.listdir(language_path)):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(
+                ".jsonl.gz"
             ):
+                continue
 
-                faq_file.seek(faq_offset)
-                if consider_language:
-                    if i >= len(labels_offsets) or i >= len(flags_offsets):
-                        continue
-                    labels_file.seek(labels_offsets[i])
-                    flags_file.seek(flags_offsets[i])
-                embeddings_file.seek(embeddings_offset)
+            faq_path = os.path.join(language_path, filename)
+            semantic_similarity_path = os.path.join(
+                language_path, filename.replace("faqs_sorted_", "semantic_similarity_")
+            )
+            labse_embeddings_path = os.path.join(
+                language_path, filename.replace("faqs_sorted_", "labse_embeddings_")
+            )
+            with gzip.open(faq_path, "rt", encoding="UTF-8") as faq_file, gzip.open(
+                semantic_similarity_path, "rt", encoding="UTF-8"
+            ) as semantic_similarity_file, gzip.open(
+                labse_embeddings_path, "rt", encoding="UTF-8"
+            ) as labse_embeddings_file:
 
-                while True:
-                    faq_line = faq_file.readline().strip()
-                    if consider_language:
-                        labels_line = labels_file.readline().strip()
-                        flags_line = flags_file.readline().strip()
-                    embeddings_line = embeddings_file.readline().strip()
+                for i, (
+                    faq_offset,
+                    semantic_similarity_offset,
+                    labse_embeddings_offset,
+                ) in enumerate(
+                    zip(
+                        faq_offsets,
+                        semantic_similarity_offsets,
+                        labse_embeddings_offsets,
+                    )
+                ):
 
-                    # Break at end of file
-                    if not faq_line:
-                        break
+                    faq_file.seek(faq_offset)
+                    semantic_similarity_file.seek(semantic_similarity_offset)
+                    labse_embeddings_file.seek(labse_embeddings_offset)
 
-                    try:
-                        faq_document = json.loads(faq_line)
-                        url = faq_document["url"]
-                        _scheme_host = faq_document["scheme_host"]
-                        question = faq_document["question"]
-                        answer = faq_document["answer"]
-                    except json.JSONDecodeError as e:
-                        click.echo(
-                            f"Skipping invalid JSON line in {language}/faq.jsonl: {faq_line} ({e})"
+                    while True:
+                        faq_line = faq_file.readline().strip()
+                        semantic_similarity_line = (
+                            semantic_similarity_file.readline().strip()
                         )
-                        continue
+                        labse_embeddings_line = labse_embeddings_file.readline().strip()
 
-                    # Break if scheme_host changes
-                    if _scheme_host != scheme_host:
-                        break
+                        # Break at end of file
+                        if not faq_line:
+                            break
 
-                    # Skip if question is already in documents
-                    if question in set_questions:
-                        continue
-                    set_questions.add(question)
-
-                    topic = "-"
-                    question_type = "-"
-                    if consider_language:
                         try:
-                            labels_document = json.loads(labels_line)
-                            topic = labels_document["topic"]
-                            question_type = labels_document["question_type"]
+                            faq_document = json.loads(faq_line)
+                            url = faq_document["url"]
+                            _origin = faq_document["origin"]
+                            question = faq_document["question"]
+                            answer = faq_document["answer"]
                         except json.JSONDecodeError as e:
                             click.echo(
-                                f"Skipping invalid JSON line in {language}/labels.jsonl: {labels_line} ({e})"
+                                f"Skipping invalid JSON line in {faq_path}: {faq_line} ({e})"
                             )
                             continue
 
+                        # Break if origin changes
+                        if _origin != origin:
+                            break
+
+                        # Skip if question is already in documents
+                        if question in set_questions:
+                            continue
+                        set_questions.add(question)
+
                         try:
-                            flags_document = json.loads(flags_line)
-                            filter = flags_document["filter"]
-                            near_duplicate_similarity = flags_document[
-                                "near_duplicate_similarity"
-                            ]
+                            semantic_similarity_document = json.loads(
+                                semantic_similarity_line
+                            )
+                            score = semantic_similarity_document["score"]
                         except json.JSONDecodeError as e:
                             click.echo(
-                                f"Skipping invalid JSON line in {language}/flags.jsonl: {flags_line.strip()} ({e})"
+                                f"Skipping invalid JSON line in {semantic_similarity_path}: {semantic_similarity_line.strip()} ({e})"
                             )
                             continue
 
                         # Check if filtered
-                        if filter:
-                            continue
-                        if near_duplicate_similarity >= LIMIT_QUESTIONS_SIMILARITY:
+                        if score < THRESHOLD_QUESTION_ANSWER_SIMILARITY:
                             continue
 
-                    try:
-                        embeddings_document = json.loads(embeddings_line)
-                        embedding = embeddings_document["embedding"]
-                    except json.JSONDecodeError as e:
-                        click.echo(
-                            f"Skipping invalid JSON line in {language}/embeddings.jsonl: {embeddings_line} ({e})"
+                        try:
+                            labse_embeddings_document = json.loads(
+                                labse_embeddings_line
+                            )
+                            embedding = labse_embeddings_document["embedding"]
+                        except json.JSONDecodeError as e:
+                            click.echo(
+                                f"Skipping invalid JSON line in {labse_embeddings_path}: {labse_embeddings_line.strip()} ({e})"
+                            )
+                            continue
+
+                        # Add to the index for language
+                        if not language in documents:
+                            documents[language] = []
+                        documents[language].append(
+                            {
+                                "url": url,
+                                "question": question,
+                                "answer": answer,
+                                "embedding": embedding,
+                            }
                         )
-                        continue
-
-                    # Detect language code in URL path
-                    # match = re.match(f"^{scheme_host}" + r"/([a-z]{2})/", url)
-                    # if match:
-                    #     if language == map_iso_code(match.group(1)):
-                    #         url_path = url[len(scheme_host) + 4:]
-                    #     else:
-                    #         continue
-                    # else:
-                    #     url_path = "-"
-                    url_path = "-"
-
-                    # Add to the index for language
-                    if not url_path in documents:
-                        documents[url_path] = {}
-                    if not language in documents[url_path]:
-                        documents[url_path][language] = []
-                    documents[url_path][language].append(
-                        {
-                            "url": url,
-                            "question": question,
-                            "answer": answer,
-                            "topic": topic,
-                            "question_type": question_type,
-                            "embedding": embedding,
-                        }
-                    )
-
-            if consider_language:
-                labels_file.close()
-                flags_file.close()
-
-    # Collate all URL paths that are not aligned
-    _url_paths = list(documents.keys())
-    for url_path in _url_paths:
-        if url_path == "-":
-            continue
-
-        _languages = list(documents[url_path].keys())
-        if len(_languages) > 1:
-            continue
-        for language in _languages:
-            # if not "-" in documents:
-            #     documents["-"] = {}
-            # if not language in documents["-"]:
-            #     documents["-"][language] = []
-            # documents["-"][language].extend(documents[url_path][language])
-            del documents[url_path][language]
-            if len(documents[url_path]) == 0:
-                del documents[url_path]
 
     # Generate candidates
     candidates = []
-    for url_path in sorted(documents.keys()):
+    _languages = list(documents.keys())
+    if len(_languages) < 2:
+        return candidates
 
-        _languages = list(documents[url_path].keys())
-        if len(_languages) < 2:
+    embeddings_dict = {}
+    for language in sorted(_languages):
+
+        # Skip if no documents
+        if len(documents[language]) == 0:
             continue
 
-        embeddings_dict = {}
-        for language in sorted(_languages):
+        # Stack embeddings and copy to GPU
+        if not language in embeddings_dict:
+            embeddings = np.stack(
+                [document["embedding"] for document in documents[language]]
+            )
+            embeddings = torch.Tensor(embeddings).cuda()
+            norm = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+            embeddings_dict[language] = norm
+
+        for _language in sorted(_languages):
+            if _language <= language:
+                continue
 
             # Skip if no documents
-            if len(documents[url_path][language]) == 0:
+            if len(documents[_language]) == 0:
                 continue
 
             # Stack embeddings and copy to GPU
-            if not language in embeddings_dict:
-                embeddings = np.stack(
-                    [
-                        document["embedding"]
-                        for document in documents[url_path][language]
-                    ]
-                )
-                embeddings = torch.Tensor(embeddings).cuda()
-                norm = torch.nn.functional.normalize(embeddings, p=2, dim=1)
-                embeddings_dict[language] = norm
+            _embeddings = np.stack(
+                [document["embedding"] for document in documents[_language]]
+            )
+            _embeddings = torch.Tensor(_embeddings).cuda()
+            _norm = torch.nn.functional.normalize(_embeddings, p=2, dim=1)
+            embeddings_dict[_language] = _norm
 
-            for _language in sorted(_languages):
-                if _language <= language:
+            # Compute cosine similarity
+            similarity_matrix = (
+                torch.matmul(embeddings_dict[language], embeddings_dict[_language].T)
+                .cpu()
+                .numpy()
+            )
+
+            # Store maxima for each column
+            max_similarity_columns = np.max(similarity_matrix, axis=0)
+
+            # Filter candidates
+            for i in range(similarity_matrix.shape[0]):
+                j = np.argmax(similarity_matrix[i, :])
+                if similarity_matrix[i, j] < THRESHOLD_LABSE_SIMILARITY:
                     continue
-
-                # Skip if no documents
-                if len(documents[url_path][_language]) == 0:
+                # Skip if it is row-wise or column-wise not the maximum similarity
+                if similarity_matrix[i, j] < max_similarity_columns[j]:
                     continue
+                candidate = {
+                    "origin": origin,
+                    "similarity": float(similarity_matrix[i, j]),
+                    "languages": (language, _language),
+                    "urls": (
+                        documents[language][i]["url"],
+                        documents[_language][j]["url"],
+                    ),
+                    "questions": (
+                        documents[language][i]["question"],
+                        documents[_language][j]["question"],
+                    ),
+                    "answers": (
+                        documents[language][i]["answer"],
+                        documents[_language][j]["answer"],
+                    ),
+                }
+                candidates.append(candidate)
 
-                # Stack embeddings and copy to GPU
-                _embeddings = np.stack(
-                    [
-                        document["embedding"]
-                        for document in documents[url_path][_language]
-                    ]
-                )
-                _embeddings = torch.Tensor(_embeddings).cuda()
-                _norm = torch.nn.functional.normalize(_embeddings, p=2, dim=1)
-                embeddings_dict[_language] = _norm
-
-                # Compute cosine similarity
-                similarity_matrix = (
-                    torch.matmul(
-                        embeddings_dict[language], embeddings_dict[_language].T
-                    )
-                    .cpu()
-                    .numpy()
-                )
-
-                # Store maxima for each column
-                max_similarity_columns = np.max(similarity_matrix, axis=0)
-
-                # Filter candidates
-                for i in range(similarity_matrix.shape[0]):
-                    j = np.argmax(similarity_matrix[i, :])
-                    if similarity_matrix[i, j] < THRESHOLD_LABSE_SIMILARITY:
-                        continue
-                    # Skip if it is row-wise or column-wise not the maximum similarity
-                    if similarity_matrix[i, j] < max_similarity_columns[j]:
-                        continue
-                    candidate = {
-                        "scheme_host": scheme_host,
-                        "similarity": float(similarity_matrix[i, j]),
-                        "languages": (language, _language),
-                        "urls": (
-                            documents[url_path][language][i]["url"],
-                            documents[url_path][_language][j]["url"],
-                        ),
-                        "questions": (
-                            documents[url_path][language][i]["question"],
-                            documents[url_path][_language][j]["question"],
-                        ),
-                        "answers": (
-                            documents[url_path][language][i]["answer"],
-                            documents[url_path][_language][j]["answer"],
-                        ),
-                        "topics": (
-                            documents[url_path][language][i]["topic"],
-                            documents[url_path][_language][j]["topic"],
-                        ),
-                        "question_types": (
-                            documents[url_path][language][i]["question_type"],
-                            documents[url_path][_language][j]["question_type"],
-                        ),
-                    }
-                    candidates.append(candidate)
-
-        # Free memory
-        del embeddings_dict
-        torch.cuda.empty_cache()
+    # Free memory
+    del embeddings_dict
+    torch.cuda.empty_cache()
 
     return candidates
 
@@ -296,9 +252,7 @@ def pc_candidates(from_index: int, to_index: int):
     assert torch.cuda.is_available(), "CUDA is not available"
 
     # Read host languages file
-    scheme_hosts_languages_path = os.path.join(
-        DATASETS_FOLDER, "faqs", "scheme_hosts_languages.json"
-    )
+    origins_languages_path = os.path.join(DATASETS_FOLDER, "origins_languages.json")
 
     # Initialize results path
     results_path = os.path.join(DATASETS_FOLDER, "faqs")
@@ -317,22 +271,37 @@ def pc_candidates(from_index: int, to_index: int):
         if not os.path.isdir(language_path):
             continue
 
-        # Load offsets
-        with open(os.path.join(language_path, "offsets.json"), "r") as offsets_file:
-            _offsets = json.load(offsets_file)
-            offsets[language] = _offsets
+        for filename in sorted(os.listdir(language_path)):
+            if not filename.startswith("offsets_") or not filename.endswith(
+                ".jsonl.gz"
+            ):
+                continue
 
-    with open(scheme_hosts_languages_path, "r") as file:
-        scheme_hosts_languages = json.load(file)
+            # Load offsets
+            offsets_path = os.path.join(language_path, filename)
+            with gzip.open(offsets_path, "rt", encoding="UTF-8") as offsets_file:
+                _offsets = json.load(offsets_file)
+                if language not in offsets:
+                    offsets[language] = _offsets
+                else:
+                    for origin, origin_offsets in _offsets.items():
+                        if origin not in offsets[language]:
+                            offsets[language][origin] = origin_offsets
+                        else:
+                            offsets[language][origin].extend(origin_offsets)
 
-        with tqdm(total=len(scheme_hosts_languages), mininterval=10) as pbar:
+    with open(origins_languages_path, "r") as file:
+        origins_languages = json.load(file)
+
+        with tqdm(total=len(origins_languages), mininterval=10) as pbar:
 
             # Loop over all hosts
-            for i, (scheme_host, languages) in enumerate(
-                scheme_hosts_languages.items()
-            ):
+            for i, (origin, languages) in enumerate(origins_languages.items()):
                 if to_index > 0 and i >= to_index:
                     break
+
+                click.echo()
+                click.echo(f"Processing origin {i}: {origin}")
 
                 # Update progress bar
                 pbar.update(1)
@@ -345,35 +314,40 @@ def pc_candidates(from_index: int, to_index: int):
                         click.echo(f"Language {language} not found in offsets")
                         continue
 
-                # Get offsets for this scheme + host
+                # Skip if any language has more than 10,000 URLs
+                if any([v > 10_000 for v in languages.values()]):
+                    click.echo(
+                        f"Skipping origin {origin} with more than 10,000 URLs:\n{languages}"
+                    )
+                    continue
+
+                # Get offsets for this origin
                 languages = [
                     language
                     for language in sorted(languages)
-                    if scheme_host in offsets[language]
+                    if origin in offsets[language]
                 ]
-                scheme_host_offsets = [
-                    offsets[language][scheme_host]
+                origin_offsets = [
+                    offsets[language][origin]
                     for language in languages
-                    if scheme_host in offsets[language]
+                    if origin in offsets[language]
                 ]
 
+                # Skip if less than 2 languages - should not happen
                 if len(languages) < 2:
                     continue
 
                 # Generate candidates
                 candidates.extend(
-                    generate_candidates(
-                        scheme_host, languages, scheme_host_offsets, dataset_name
-                    )
+                    generate_candidates(origin, languages, origin_offsets)
                 )
 
     # Save candidates to file
     candidates_path = os.path.join(
         DATASETS_FOLDER,
-        dataset_name,
-        "results",
         f"candidates_{from_index}_{to_index}.jsonl",
     )
+    os.makedirs(os.path.dirname(candidates_path), exist_ok=True)
     click.echo(f"Save candidates to: {candidates_path}")
 
     # Write candidates to file

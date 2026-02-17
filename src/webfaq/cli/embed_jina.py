@@ -1,14 +1,15 @@
-import click
-import os
-import json
 import gzip
-import torch
+import json
+import os
+
+import click
 import numpy as np
+import torch
 from tqdm import tqdm
 from transformers import AutoModel
-from webfaq.utils import *
-from webfaq.config import *
 
+from webfaq.config import *
+from webfaq.utils import *
 
 BATCH_SIZE = 50_000
 
@@ -102,13 +103,17 @@ def embed_jina():
         click.echo(f"Language: {language}")
 
         for filename in sorted(os.listdir(language_path)):
-            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(
+                ".jsonl.gz"
+            ):
                 continue
 
             click.echo(f"Reading file: {filename}")
 
             # Check if embeddings already exist
-            embeddings_path = os.path.join(language_path, filename.replace("faqs_sorted_", "jina_embeddings_"))
+            embeddings_path = os.path.join(
+                language_path, filename.replace("faqs_sorted_", "jina_embeddings_")
+            )
             if os.path.exists(embeddings_path):
                 click.echo(f"Embeddings already exist: {embeddings_path}")
                 continue
@@ -118,7 +123,9 @@ def embed_jina():
             questions = []
             answers = []
 
-            with gzip.open(os.path.join(language_path, filename), "rt", encoding="UTF-8") as file:
+            with gzip.open(
+                os.path.join(language_path, filename), "rt", encoding="UTF-8"
+            ) as file:
 
                 for line in tqdm(file):
                     try:
@@ -127,7 +134,10 @@ def embed_jina():
                         questions.append(document["question"])
                         answers.append(document["answer"])
                     except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})", err=True)
+                        click.echo(
+                            f"Skipping invalid JSON line: {line.strip()} ({e})",
+                            err=True,
+                        )
                         ids.append("")
                         questions.append("")
                         answers.append("")
@@ -138,10 +148,14 @@ def embed_jina():
             for i_start in tqdm(range(0, len(questions), BATCH_SIZE)):
                 i_end = min(i_start + BATCH_SIZE, len(questions))
                 question_embeddings.extend(
-                    model.encode_queries(questions[i_start:i_end], truncate_dim=512).astype(np.float16)
+                    model.encode_queries(
+                        questions[i_start:i_end], truncate_dim=512
+                    ).astype(np.float16)
                 )
                 answer_embeddings.extend(
-                    model.encode_corpus(answers[i_start:i_end], truncate_dim=512).astype(np.float16)
+                    model.encode_corpus(
+                        answers[i_start:i_end], truncate_dim=512
+                    ).astype(np.float16)
                 )
 
             # Save embeddings to file

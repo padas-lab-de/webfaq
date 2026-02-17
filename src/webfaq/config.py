@@ -53,18 +53,6 @@ LANGUAGES_100_ORIGINS = [
     "vie",
     "zho",
 ]
-QUESTION_TYPES = [
-    "What",
-    "When",
-    "Where",
-    "Which",
-    "Who/Whom/Whose",
-    "Why",
-    "How",
-    "Is, are, do, does",
-    "Can, could, will, would, may, might, shall, should",
-    "No Question Word",
-]
 TOPICS = [
     "Products and Commercial Services",
     "Traveling and Hospitality",
@@ -82,5 +70,9 @@ OWI_DATASETS_FOLDER = os.path.expanduser("~/.owi/public/main/")
 RESOURCES_FOLDER = "resources"
 TEMP_FOLDER = "temp"
 
-CLDR_MAPPING = json.loads(open(os.path.join(RESOURCES_FOLDER, "iso3166_to_iso639_2_cldr.json")).read())
-LANG_CODE_ORIGIN_MAPPING = json.loads(open(os.path.join(RESOURCES_FOLDER, "language_code_origin_mapping.json")).read())
+CLDR_MAPPING = json.loads(
+    open(os.path.join(RESOURCES_FOLDER, "iso3166_to_iso639_2_cldr.json")).read()
+)
+LANG_CODE_ORIGIN_MAPPING = json.loads(
+    open(os.path.join(RESOURCES_FOLDER, "language_code_origin_mapping.json")).read()
+)

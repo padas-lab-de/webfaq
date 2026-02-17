@@ -1,13 +1,14 @@
-import click
-import os
-import json
 import gzip
-import numpy as np
-from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
-from webfaq.utils import *
-from webfaq.config import *
+import json
+import os
 
+import click
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
+
+from webfaq.config import *
+from webfaq.utils import *
 
 BATCH_SIZE = 50_000
 
@@ -46,20 +47,24 @@ def embed_labse():
         if not os.path.isdir(language_path):
             continue
 
-        # if language != "jpn":  # < "jpn"
-        #     click.echo(f"Skipping language: {language}")
-        #     continue
+        if language != "afr":  # < "jpn"
+            click.echo(f"Skipping language: {language}")
+            continue
 
         click.echo(f"Language: {language}")
 
         for filename in sorted(os.listdir(language_path)):
-            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(
+                ".jsonl.gz"
+            ):
                 continue
 
             click.echo(f"Reading file: {filename}")
 
             # Check if embeddings already exist
-            embeddings_path = os.path.join(language_path, filename.replace("faqs_sorted_", "labse_embeddings_"))
+            embeddings_path = os.path.join(
+                language_path, filename.replace("faqs_sorted_", "labse_embeddings_")
+            )
             if os.path.exists(embeddings_path):
                 click.echo(f"Embeddings already exist: {embeddings_path}")
                 # continue
@@ -80,7 +85,9 @@ def embed_labse():
                 questions = []
                 answers = []
 
-                with gzip.open(os.path.join(language_path, filename), "rt", encoding="UTF-8") as file:
+                with gzip.open(
+                    os.path.join(language_path, filename), "rt", encoding="UTF-8"
+                ) as file:
 
                     for line in tqdm(file):
                         try:
@@ -89,7 +96,10 @@ def embed_labse():
                             questions.append(document["question"])
                             answers.append(document["answer"])
                         except json.JSONDecodeError as e:
-                            click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})", err=True)
+                            click.echo(
+                                f"Skipping invalid JSON line: {line.strip()} ({e})",
+                                err=True,
+                            )
                             ids.append("")
                             questions.append("")
                             answers.append("")
@@ -100,7 +110,9 @@ def embed_labse():
                     i_end = min(i_start + BATCH_SIZE, len(questions))
                     sentences = [
                         f"{q} {a}".strip()
-                        for q, a in zip(questions[i_start:i_end], answers[i_start:i_end])
+                        for q, a in zip(
+                            questions[i_start:i_end], answers[i_start:i_end]
+                        )
                     ]
                     for embedding in model.encode(sentences):
                         embedding = embedding.astype(np.float16)

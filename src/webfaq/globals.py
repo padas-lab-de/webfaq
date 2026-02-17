@@ -1,16 +1,17 @@
-import torch
+from typing import *
+
 import numpy as np
+import torch
 import torch.nn.functional as F
+from torch import Tensor
 from tqdm import tqdm
 from transformers import (
     AutoModel,
     AutoTokenizer,
-    PreTrainedTokenizerFast,
     BatchEncoding,
+    PreTrainedTokenizerFast,
 )
 from transformers.modeling_outputs import BaseModelOutput
-from torch import Tensor
-from typing import *
 
 
 def transform_func(

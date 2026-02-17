@@ -1,26 +1,29 @@
 import click
-from webfaq.cli.extract import extract
-from webfaq.cli.sort import sort
-from webfaq.cli.merge import merge
-from webfaq.cli.evaluate import evaluate
-from webfaq.cli.embed_labse import embed_labse
+
+from webfaq.cli.bm25.generate_jsonl import bm25_generate_jsonl
 from webfaq.cli.embed_jina import embed_jina
+from webfaq.cli.embed_labse import embed_labse
+from webfaq.cli.evaluate import evaluate
+from webfaq.cli.extract import extract
+from webfaq.cli.fine_tune.ft_mteb import ft_mteb
+from webfaq.cli.fine_tune.ft_run import ft_run
+from webfaq.cli.fine_tune.ft_sample import ft_sample
+from webfaq.cli.huggingface.prepare_base import prepare_base
+from webfaq.cli.huggingface.upload_base import upload_base
 from webfaq.cli.label import label
-from webfaq.cli.semantic_similarity import semantic_similarity
+from webfaq.cli.merge import merge
 from webfaq.cli.near_duplicates import near_duplicates
 from webfaq.cli.offsets import offsets
-from webfaq.cli.statistics import statistics
-from webfaq.cli.topic_classification.tc_annotate import tc_annotate
-from webfaq.cli.question_type_classification.qtc_annotate import qtc_annotate
+from webfaq.cli.parallel_corpus.huggingface.pc_upload import pc_upload
+from webfaq.cli.parallel_corpus.pc_assess import pc_assess
 from webfaq.cli.parallel_corpus.pc_candidates import pc_candidates
 from webfaq.cli.parallel_corpus.pc_score import pc_score
-from webfaq.cli.parallel_corpus.pc_assess import pc_assess
 from webfaq.cli.parallel_corpus.pc_transform import pc_transform
-from webfaq.cli.fine_tune.ft_sample import ft_sample
-from webfaq.cli.fine_tune.ft_run import ft_run
-from webfaq.cli.fine_tune.ft_mteb import ft_mteb
-from webfaq.cli.bm25.generate_jsonl import bm25_generate_jsonl
-from webfaq.cli.huggingface.upload_base import upload_base
+from webfaq.cli.question_type_classification.qtc_annotate import qtc_annotate
+from webfaq.cli.semantic_similarity import semantic_similarity
+from webfaq.cli.sort import sort
+from webfaq.cli.statistics import statistics
+from webfaq.cli.topic_classification.tc_annotate import tc_annotate
 
 # from webfaq.cli.bm25.bm25_evaluate import bm25_evaluate
 # from webfaq.cli.bm25.bm25_evaluate_hybrid import bm25_evaluate_hybrid
@@ -107,18 +110,10 @@ topic_classification.add_command(tc_annotate, "annotate")
 question_type_classification.add_command(qtc_annotate, "annotate")
 
 parallel_corpus.add_command(pc_candidates, "candidates")
-parallel_corpus.add_command(pc_score, "score")
-parallel_corpus.add_command(pc_assess, "assess")
 parallel_corpus.add_command(pc_transform, "transform")
+parallel_corpus.add_command(pc_upload, "upload")
 
-fine_tune.add_command(ft_sample, "sample")
-fine_tune.add_command(ft_run, "run")
-fine_tune.add_command(ft_mteb, "mteb")
-
-bm25.add_command(bm25_generate_jsonl, "generate-jsonl")
-# bm25.add_command(bm25_evaluate, "evaluate")
-# bm25.add_command(bm25_evaluate_hybrid, "evaluate-hybrid")
-
+huggingface.add_command(prepare_base)
 huggingface.add_command(upload_base)
 
 

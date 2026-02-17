@@ -1,13 +1,13 @@
-import pandas as pd
 import iso639
+import pandas as pd
 from iso639 import LanguageNotFoundError
-from pytrec_eval import RelevanceEvaluator
 from mteb.tasks.retrieval.multilingual import (
-    WebFAQRetrieval,
     MIRACLRetrieval,
     MIRACLRetrievalHardNegatives,
     MrTidyRetrieval,
+    WebFAQRetrieval,
 )
+from pytrec_eval import RelevanceEvaluator
 
 
 def count_lines(filepath):

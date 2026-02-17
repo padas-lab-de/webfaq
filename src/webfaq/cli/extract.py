@@ -1,19 +1,20 @@
-import click
-import os
-import sys
 import gzip
-import json
-import re
-import fasttext
-import emoji
 import hashlib
-import pyarrow.parquet as pq
-from tqdm import tqdm
+import json
+import os
+import re
+import sys
 from collections import defaultdict
 from urllib.parse import urlparse
-from webfaq.utils import *
-from webfaq.config import *
 
+import click
+import emoji
+import fasttext
+import pyarrow.parquet as pq
+from tqdm import tqdm
+
+from webfaq.config import *
+from webfaq.utils import *
 
 MAX_WORKERS = 16
 LANGID_CONFIDENCE_THRESHOLD = 0.25  # 0.63
@@ -42,7 +43,9 @@ def process_parquet_file(
         # Convert batch to JSON list
         batch_list = batch.to_pylist()
 
-        for row in tqdm(batch_list, total=len(batch_list), mininterval=10, file=sys.stdout):
+        for row in tqdm(
+            batch_list, total=len(batch_list), mininterval=10, file=sys.stdout
+        ):
 
             faq = row["faq"]
             if not faq:
@@ -159,7 +162,9 @@ def process_parquet_file(
                     if first_url_segment:
                         lang_code_hints = get_lang_code_hints(first_url_segment)
                     if not lang_code_hints:
-                        second_url_segment = re.match(r"^https?://[^/]+/[^/]+/([^/]+)/?", url)
+                        second_url_segment = re.match(
+                            r"^https?://[^/]+/[^/]+/([^/]+)/?", url
+                        )
                         if second_url_segment:
                             lang_code_hints = get_lang_code_hints(second_url_segment)
 
@@ -185,7 +190,10 @@ def process_parquet_file(
                     if lang_code_hints:
                         for lang_code_hint in lang_code_hints:
                             if lang_code_hint in candidates:
-                                if candidates[lang_code_hint] >= LANGID_CONFIDENCE_HINT_THRESHOLD:
+                                if (
+                                    candidates[lang_code_hint]
+                                    >= LANGID_CONFIDENCE_HINT_THRESHOLD
+                                ):
                                     lang_code = lang_code_hint
                                     break
 

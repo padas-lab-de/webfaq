@@ -1,25 +1,24 @@
-import click
-import os
+import gzip
 import json
+import os
 from glob import glob
+
+import click
+
 from webfaq.config import *
 
-
 THRESHOLD_SIMILARITY = 0.9  # For 0.946 precision
-THRESHOLD_BITEXTS = 4_000
+THRESHOLD_BITEXTS = 100
 
 
 @click.command()
-@click.argument("dataset_name", type=str)
 @click.argument("filename_pattern", type=str)
-def pc_transform(dataset_name: str, filename_pattern: str):
+def pc_transform(filename_pattern: str):
     """
     Transform the scored parallel candidates and save them as bitexts.
     """
     # Load the JSONL files
-    scores_paths = glob(
-        os.path.join(DATASETS_FOLDER, dataset_name, "results", filename_pattern)
-    )
+    scores_paths = glob(os.path.join(DATASETS_FOLDER, filename_pattern))
     click.echo(f"Found {len(scores_paths)} scores files")
 
     # Initialize bitexts
@@ -33,8 +32,8 @@ def pc_transform(dataset_name: str, filename_pattern: str):
             for line in file:
                 try:
                     document = json.loads(line)
+                    origin = document["origin"]
                     similarity = document["similarity"]
-                    score = document["score"]
                     languages = document["languages"]
                     questions = document["questions"]
                     answers = document["answers"]
@@ -58,33 +57,33 @@ def pc_transform(dataset_name: str, filename_pattern: str):
                 if questions[0] == questions[1] or answers[0] == answers[1]:
                     continue
 
+                result = {
+                    "language1": languages[0],
+                    "language2": languages[1],
+                    "origin": origin,
+                    "labse_similarity": similarity,
+                    "question1": questions[0],
+                    "question2": questions[1],
+                    "answer1": answers[0],
+                    "answer2": answers[1],
+                    "details": {
+                        "urls": document["urls"],
+                    },
+                }
+
                 # Add to bitexts
-                languages_str = f"{languages[0]}_{languages[1]}"
-                if not languages_str in bitexts:
-                    bitexts[languages_str] = []
-                bitexts[languages_str].append(
-                    {
-                        "origin": document["scheme_host"],
-                        "labse_similarity": similarity,
-                        # "score": score,
-                        # "languages": languages,
-                        "question1": questions[0],
-                        "question2": questions[1],
-                        "answer1": answers[0],
-                        "answer2": answers[1],
-                        "details": {
-                            "urls": document["urls"],
-                            "topics": document["topics"],
-                            "question_types": document["question_types"],
-                        },
-                    }
-                )
+                languages = tuple(sorted(languages))
+                if not languages in bitexts:
+                    bitexts[languages] = []
+                bitexts[languages].append(result)
 
     # Save bitexts to file
-    for languages_str, scored_documents in bitexts.items():
+    bitexts_eng = []
+    bitext_other = []
+    for languages, scored_documents in sorted(bitexts.items()):
         if len(scored_documents) < THRESHOLD_BITEXTS:
             click.echo(
-                f'Skipping language combination "{languages_str}" with less than {THRESHOLD_BITEXTS} bitexts ({len(scored_documents)})'
+                f'Skipping language combination "{languages}" with less than {THRESHOLD_BITEXTS} bitexts ({len(scored_documents)})'
             )
             continue
 
@@ -93,12 +92,25 @@ def pc_transform(dataset_name: str, filename_pattern: str):
             scored_documents, key=lambda x: x["details"]["urls"][0]
         )
 
-        bitexts_path = os.path.join(
-            DATASETS_FOLDER, dataset_name, "bitexts", f"{languages_str}.jsonl"
-        )
-        os.makedirs(os.path.dirname(bitexts_path), exist_ok=True)
+        if languages[0] == "eng" or languages[1] == "eng":
+            bitexts_eng.extend(scored_documents)
+        else:
+            bitext_other.extend(scored_documents)
 
-        click.echo(f'Saving language combination "{languages_str}": {bitexts_path}')
-        with open(bitexts_path, "w") as file:
-            for scored_document in scored_documents:
-                file.write(json.dumps(scored_document) + "\n")
+    # Save English bitexts
+    bitexts_path = os.path.join(DATASETS_FOLDER, "bitexts", "eng.jsonl.gz")
+    os.makedirs(os.path.dirname(bitexts_path), exist_ok=True)
+    click.echo(f"Saving English bitexts: {bitexts_path}")
+    with gzip.open(bitexts_path, "wt", encoding="UTF-8") as file:
+        for scored_document in bitexts_eng:
+            file.write(json.dumps(scored_document) + "\n")
+
+    # Save other bitexts
+    bitexts_path = os.path.join(DATASETS_FOLDER, "bitexts", "other.jsonl.gz")
+    os.makedirs(os.path.dirname(bitexts_path), exist_ok=True)
+    click.echo(f"Saving other bitexts: {bitexts_path}")
+    with gzip.open(bitexts_path, "wt", encoding="UTF-8") as file:
+        for scored_document in bitext_other:
+            file.write(json.dumps(scored_document) + "\n")
+
+    click.echo("Done")

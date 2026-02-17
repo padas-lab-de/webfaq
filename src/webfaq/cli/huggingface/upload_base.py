@@ -1,17 +1,18 @@
-import click
+import gzip
 import json
 import os
-import gzip
-import pandas as pd
 import time
-from tqdm import tqdm
 from glob import glob
+
+import click
+import pandas as pd
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, login
-from webfaq.cli.huggingface.readme import readme_template
-from webfaq.utils import *
-from webfaq.config import *
+from tqdm import tqdm
 
+from webfaq.cli.huggingface.readme import readme_template
+from webfaq.config import *
+from webfaq.utils import *
 
 RATE_LIMIT_PER_HOUR = 128
 
@@ -21,7 +22,7 @@ RATE_LIMIT_PER_HOUR = 128
 @click.argument("temp_folder", type=str, default=TEMP_FOLDER)
 def upload_base(repo_id: str, temp_folder: str):
     """
-    Pushing the dataset of extracted Q&A pairs to HuggingFace.
+    Uploading the prepared dataset of extracted Q&A pairs to HuggingFace.
     """
     # Login to HuggingFace
     load_dotenv()
@@ -43,9 +44,11 @@ def upload_base(repo_id: str, temp_folder: str):
 
     # Upload files to the repository
     for language_path in language_paths:
-        language = language_path.split('/')[-1].split('.')[0]
+        language = language_path.split("/")[-1].split(".")[0]
 
         click.echo(f"Language: {language}")
+
+        consider_labels = language in LANGUAGES_100_ORIGINS
 
         df = pd.read_parquet(language_path, engine="pyarrow")
         num_examples = len(df)
@@ -63,10 +66,13 @@ def upload_base(repo_id: str, temp_folder: str):
         format_dataset_info += f"        dtype: string\n"
         format_dataset_info += f"      - name: answer\n"
         format_dataset_info += f"        dtype: string\n"
-        format_dataset_info += f"      - name: topic\n"
-        format_dataset_info += f"        dtype: string\n"
         format_dataset_info += f"      - name: semantic_similarity_score\n"
         format_dataset_info += f"        dtype: float\n"
+        if consider_labels:
+            format_dataset_info += f"      - name: topic\n"
+            format_dataset_info += f"        dtype: string\n"
+            format_dataset_info += f"      - name: question_type\n"
+            format_dataset_info += f"        dtype: string\n"
         format_dataset_info += f"    splits:\n"
         format_dataset_info += f"      - name: default\n"
         format_dataset_info += f"        num_bytes: {os.path.getsize(language_path)}\n"
@@ -85,7 +91,9 @@ def upload_base(repo_id: str, temp_folder: str):
         )
 
         # Throttle uploads to respect rate limits
-        click.echo(f"Waiting for {3600 / RATE_LIMIT_PER_HOUR:.2f} seconds to respect rate limits...")
+        click.echo(
+            f"Waiting for {3600 / RATE_LIMIT_PER_HOUR:.2f} seconds to respect rate limits..."
+        )
         time.sleep(3600 / RATE_LIMIT_PER_HOUR)
 
     # Remove trailing newline

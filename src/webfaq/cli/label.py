@@ -1,13 +1,14 @@
-import click
-import os
-import json
 import gzip
+import json
+import os
+
+import click
 import torch
 from tqdm import tqdm
 from transformers import pipeline
-from webfaq.utils import *
-from webfaq.config import *
 
+from webfaq.config import *
+from webfaq.utils import *
 
 BATCH_SIZE = 64
 
@@ -27,9 +28,15 @@ def label():
     Compute the topic labels for the extracted Q&A pairs.
     """
     # Instantiate Embedding Model
-    pretrained_model_name = "michaeldinzinger/xlm-roberta-base-qa-topic-classification"
+    pretrained_model_name = "michaeldinzinger/xlm-roberta-base-qa-topic-classification"  # "AliSalman29/nfqa-multilingual-classifier"
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    pipe = pipeline("text-classification", model=pretrained_model_name, truncation=True, max_length=512, device=device)
+    pipe = pipeline(
+        "text-classification",
+        model=pretrained_model_name,
+        truncation=True,
+        max_length=512,
+        device=device,
+    )
     click.echo(f"Loading model: {pretrained_model_name}")
 
     # Initialize results path
@@ -49,22 +56,20 @@ def label():
             click.echo(f"Skipping language {language}")
             continue
 
-        if language < "mmm":  # "spa"
-            continue
-
         click.echo(f"Language: {language}")
 
         for filename in sorted(os.listdir(language_path)):
-            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(
+                ".jsonl.gz"
+            ):
                 continue
-
-            # if filename < "faqs_sorted_4.jsonl.gz":
-            #     continue
 
             click.echo(f"Reading file: {filename}")
 
             # Check if labels already exist
-            labels_path = os.path.join(language_path, filename.replace("faqs_sorted_", "labels_"))
+            labels_path = os.path.join(
+                language_path, filename.replace("faqs_sorted_", "labels_")
+            )
             if os.path.exists(labels_path):
                 click.echo(f"Labels already exist: {labels_path}")
                 continue
@@ -73,7 +78,9 @@ def label():
             ids = []
             texts = []
 
-            with gzip.open(os.path.join(language_path, filename), "rt", encoding="UTF-8") as file:
+            with gzip.open(
+                os.path.join(language_path, filename), "rt", encoding="UTF-8"
+            ) as file:
 
                 for line in tqdm(file):
                     try:
@@ -81,7 +88,10 @@ def label():
                         ids.append(document["id"])
                         texts.append(concat_qa(document))
                     except json.JSONDecodeError as e:
-                        click.echo(f"Skipping invalid JSON line: {line.strip()} ({e})", err=True)
+                        click.echo(
+                            f"Skipping invalid JSON line: {line.strip()} ({e})",
+                            err=True,
+                        )
                         ids.append("")
                         texts.append("")
 

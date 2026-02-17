@@ -1,5 +1,4 @@
-readme_template = \
-'''---
+readme_template = """---
 language:
 {}
 multilinguality:
@@ -16,4 +15,4 @@ dataset_info:
 {}
 configs:
 {}
----'''
+---"""

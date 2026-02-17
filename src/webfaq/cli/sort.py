@@ -1,11 +1,12 @@
-import click
-import os
 import gzip
 import json
-from tqdm import tqdm
-from webfaq.utils import *
-from webfaq.config import *
+import os
 
+import click
+from tqdm import tqdm
+
+from webfaq.config import *
+from webfaq.utils import *
 
 THRESHOLD_FILE_SIZE = 10_000_000
 

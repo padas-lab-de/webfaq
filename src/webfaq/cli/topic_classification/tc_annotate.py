@@ -1,14 +1,15 @@
-import click
-import os
-import json
-import openai
-import dotenv
-import re
 import gzip
+import json
+import os
+import re
 import time
-from tqdm import tqdm
-from webfaq.config import *
 
+import click
+import dotenv
+import openai
+from tqdm import tqdm
+
+from webfaq.config import *
 
 LIMIT = 2_000
 # LIMIT = 10
@@ -50,7 +51,7 @@ def call_api(client, question, answer, title=None, description=None):
         text += " ### Title: " + title
     if description:
         text += " ### Description: " + description
-    
+
     response = client.chat.completions.create(
         model="gpt-5-mini",
         messages=[
@@ -61,7 +62,7 @@ def call_api(client, question, answer, title=None, description=None):
             {
                 "role": "user",
                 "content": PROMPT.format(text=text),
-            }
+            },
         ],
     )
 
@@ -77,8 +78,7 @@ def tc_annotate():
 
     # Initialize OpenAI client
     client = openai.OpenAI(
-        api_key=os.environ["OPENAI_API_KEY"],
-        organization=os.environ["OPENAI_ORG_ID"]
+        api_key=os.environ["OPENAI_API_KEY"], organization=os.environ["OPENAI_ORG_ID"]
     )
 
     # Initialize results path
@@ -100,7 +100,9 @@ def tc_annotate():
         # Load Q&A pairs
         qa_pairs = []
         for filename in sorted(os.listdir(language_path)):
-            if not filename.startswith("faqs_sorted_") or not filename.endswith(".jsonl.gz"):
+            if not filename.startswith("faqs_sorted_") or not filename.endswith(
+                ".jsonl.gz"
+            ):
                 continue
 
             click.echo(f"Reading file: {filename}")
@@ -195,15 +197,13 @@ def tc_annotate():
                 click.echo(f"Retrying [{num_retries}]...", err=True)
 
                 # Wait before retrying
-                time.sleep(60 * 60 * 2**(num_retries - 1))  # Exponential backoff
+                time.sleep(60 * 60 * 2 ** (num_retries - 1))  # Exponential backoff
 
         # Append annotated Q&A pairs for the current language
         annotated_qa_pairs.extend(annotated_qa_pairs_language)
 
         # Save annotated Q&A pairs (after each language)
-        annotations_path = os.path.join(
-            RESOURCES_FOLDER, "tc_annotations.jsonl"
-        )
+        annotations_path = os.path.join(RESOURCES_FOLDER, "tc_annotations.jsonl")
         os.makedirs(os.path.dirname(annotations_path), exist_ok=True)
         with open(annotations_path, "w") as file:
             for qa_pair in annotated_qa_pairs:
