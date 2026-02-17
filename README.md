@@ -70,7 +70,7 @@ The order of the commands is important. `isort` will sort the imports in the fil
 
 ## Run extraction code
 
-First, you need to download Open Web Index (OWI) datasets. You can download datasets via the [OWIlix](https://openwebsearcheu-public.pages.it4i.eu/owi-cli/index.html) command-line tool. After downloading datasets, they are located in the local cache (typically `~/.owi/public/main/`).
+First, you need to download Open Web Index (OWI) datasets. You can download datasets via the [OWILIX](https://openwebsearcheu-public.pages.it4i.eu/owi-cli/index.html) command-line tool. After downloading datasets, they are located in the local cache (typically `~/.owi/public/main/`).
 
 To extract the QA pairs from OWI datasets, run the following command:
 
